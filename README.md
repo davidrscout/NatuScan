@@ -52,11 +52,6 @@ venv\Scripts\activate      # Windows
 pip install -r requirements.txt
 ```
 
-Si no tienes `requirements.txt`:
-```bash
-pip install customtkinter requests python-nmap
-```
-
 ---
 
 ## ▶️ Uso
