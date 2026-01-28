@@ -42,7 +42,7 @@ Incluye escaneo, fuzzer web, generación de payloads, listener, utilidades, crip
 ## 📦 Instalación
 
 ```bash
-git clone https://github.com/tu_usuario/cybernatu.git
+git clone https://github.com/davidrscout/NatuScan.git
 cd cybernatu
 
 python -m venv venv
