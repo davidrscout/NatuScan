@@ -1,0 +1,3 @@
+"""
+CyberNatu pentesting GUI package.
+"""
