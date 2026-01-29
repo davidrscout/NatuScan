@@ -1,21 +1,26 @@
 import os
 import json
 import socket
+import threading
 
 import customtkinter as ctk
 
 from .ui_constants import PALETTES, UI_FONT, UI_FONT_BOLD, Toast
 from .context import AppContext
 from .logger import AppLogger
+from .services import WordlistManager
 from .panels import (
     ScannerPanel,
     ListenerPanel,
     PayloadsPanel,
     FuzzerPanel,
     UtilsPanel,
+    ConfigPanel,
     CryptoPanel,
     LogsPanel,
     ViewerPanel,
+    BurpPanel,
+    CredentialsPanel,
 )
 
 CFG_PATH = os.path.join(os.path.expanduser("~"), ".cybernatu_theme.json")
@@ -29,6 +34,7 @@ class CyberNatuApp(ctk.CTk):
 
         self.logger = AppLogger()
         self.context = AppContext(logger=self.logger)
+        self.wordlists = WordlistManager(logger=self.logger)
         self.theme = self.load_theme()
         self.c = PALETTES[self.theme]
 
@@ -82,10 +88,13 @@ class CyberNatuApp(ctk.CTk):
         self.nav_buttons = {}
         nav_items = [
             ("🔍 Escáner", "scanner"),
+            ("🧪 Burp Lab", "burp"),
             ("🎧 Listener", "listener"),
             ("💣 Payloads", "payloads"),
             ("🌐 Fuzzer", "fuzzer"),
             ("🛠 Utils", "utils"),
+            ("🔐 Credenciales", "credentials"),
+            ("⚙️ Config", "config"),
             ("🧬 Crypto", "crypto"),
             ("📜 Logs", "logs"),
             ("📂 Viewer", "viewer"),
@@ -110,10 +119,13 @@ class CyberNatuApp(ctk.CTk):
         # Panels
         self.panels = {
             "scanner": ScannerPanel(self),
+            "burp": BurpPanel(self),
             "listener": ListenerPanel(self),
             "payloads": PayloadsPanel(self),
             "fuzzer": FuzzerPanel(self),
             "utils": UtilsPanel(self),
+            "credentials": CredentialsPanel(self),
+            "config": ConfigPanel(self),
             "crypto": CryptoPanel(self),
             "logs": LogsPanel(self),
             "viewer": ViewerPanel(self),
@@ -121,6 +133,27 @@ class CyberNatuApp(ctk.CTk):
         for p in self.panels.values():
             p.grid(row=0, column=0, sticky="nsew")
         self.show_panel("scanner")
+        self._start_wordlist_scan()
+
+    def _start_wordlist_scan(self):
+        def run_scan():
+            if not self.wordlists.roots:
+                if self.logger:
+                    self.logger.utils("Configura la carpeta de wordlists en Config.")
+                return
+            if self.logger:
+                self.logger.utils("Indexando wordlists...")
+            count = self.wordlists.scan()
+            if self.logger:
+                self.logger.utils(f"Wordlists indexadas: {count}")
+            try:
+                self.after(0, lambda: self.panels["fuzzer"].refresh_wordlist_status())
+                self.after(0, lambda: self.panels["crypto"].refresh_wordlist_status())
+                self.after(0, lambda: self.panels["config"]._finish_wordlist_scan(count))
+            except Exception:
+                pass
+
+        threading.Thread(target=run_scan, daemon=True).start()
 
     def toggle_theme(self, value):
         self.theme = "dark" if value.lower() == "dark" else "light"

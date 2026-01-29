@@ -77,6 +77,28 @@ class CryptoPanel(ctk.CTkFrame):
         self.lbl_wordlist = ctk.CTkLabel(john_card, text="Ninguna wordlist", text_color=c["TEXT_MUTED"], font=UI_FONT)
         self.lbl_wordlist.grid(row=2, column=1, padx=8, pady=6, sticky="w")
 
+        self.wordlist_mode = ctk.CTkSegmentedButton(
+            john_card,
+            values=["Auto", "Manual"],
+            fg_color=c["BG_CARD"],
+            selected_color=c["ACCENT"],
+            text_color=c["TEXT_PRIMARY"],
+            command=self.set_wordlist_mode,
+        )
+        self.wordlist_mode.set("Auto")
+        self.wordlist_mode.grid(row=2, column=2, padx=8, pady=6, sticky="w")
+
+        self.wordlist_size = ctk.CTkSegmentedButton(
+            john_card,
+            values=["Pequeña", "Media", "Grande"],
+            fg_color=c["BG_CARD"],
+            selected_color=c["ACCENT"],
+            text_color=c["TEXT_PRIMARY"],
+            command=self.set_wordlist_size,
+        )
+        self.wordlist_size.set("Media")
+        self.wordlist_size.grid(row=3, column=2, padx=8, pady=6, sticky="w")
+
         ctk.CTkLabel(john_card, text="Formato (raw-md5 / zip ...)", text_color=c["TEXT_PRIMARY"], font=UI_FONT).grid(row=3, column=0, padx=12, pady=6, sticky="w")
         self.john_format = ctk.CTkEntry(john_card, width=200, placeholder_text="raw-md5 / zip / etc",
                                         fg_color=c["BG_CARD"], border_color=c["ACCENT_SECONDARY"], border_width=1,
@@ -90,6 +112,7 @@ class CryptoPanel(ctk.CTkFrame):
 
         self.john_output = ctk.CTkTextbox(john_card, height=180, fg_color=c["BG_CARD"], text_color=c["TEXT_PRIMARY"], font=MONO_FONT)
         self.john_output.grid(row=5, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="we")
+        self.refresh_wordlist_status()
 
     def do_b64_encode(self):
         data = self.input_text.get("1.0", "end").strip()
@@ -169,11 +192,15 @@ class CryptoPanel(ctk.CTkFrame):
         if path:
             self.wordlist = path
             self.lbl_wordlist.configure(text=os.path.basename(path))
+            self.wordlist_mode.set("Manual")
+            self.set_wordlist_mode("Manual")
             if self.app.logger:
                 self.app.logger.crypto(f"Wordlist seleccionada: {path}")
 
     def run_john(self):
         self.john_output.delete("1.0", "end")
+        if self.wordlist_mode.get() == "Auto":
+            self.refresh_wordlist_status()
         if not self.hash_file or not self.wordlist:
             self.john_output.insert("end", "[!] Falta hashfile o wordlist.\n")
             if self.app.logger:
@@ -194,6 +221,40 @@ class CryptoPanel(ctk.CTkFrame):
         if self.app.logger:
             self.app.logger.crypto("John the Ripper iniciado")
         threading.Thread(target=self._run_john_proc, args=(cmd,), daemon=True).start()
+
+    def set_wordlist_mode(self, value):
+        if value == "Manual":
+            pass
+        else:
+            self.refresh_wordlist_status()
+
+    def set_wordlist_size(self, value):
+        self.refresh_wordlist_status()
+
+    def refresh_wordlist_status(self):
+        if self.wordlist_mode.get() != "Auto":
+            return
+        if self.app.wordlists.scanning or not self.app.wordlists.ready:
+            self.lbl_wordlist.configure(text="Auto (indexando...)")
+            return
+        if not self.app.wordlists.index:
+            self.lbl_wordlist.configure(text="Auto: configura carpeta en Config")
+            return
+        size = self._map_size()
+        path = self.app.wordlists.pick_for_task("password", size=size)
+        if path:
+            self.wordlist = path
+            self.lbl_wordlist.configure(text=f"Auto: ...{os.path.basename(path)}")
+        else:
+            self.lbl_wordlist.configure(text="Auto: sin wordlist")
+
+    def _map_size(self):
+        value = self.wordlist_size.get()
+        if value == "Grande":
+            return "large"
+        if value == "Media":
+            return "medium"
+        return "small"
 
     def _run_john_proc(self, cmd):
         try:

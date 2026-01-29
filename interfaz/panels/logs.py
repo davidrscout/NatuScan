@@ -25,7 +25,7 @@ class LogsPanel(ctk.CTkFrame):
 
         filters = ctk.CTkSegmentedButton(
             header,
-            values=["ALL", "SCAN", "LISTENER", "SERVER", "FUZZER", "PAYLOADS", "CRYPTO", "UTILS", "VIEWER", "CTX"],
+            values=["ALL", "SCAN", "LISTENER", "SERVER", "FUZZER", "PAYLOADS", "CRYPTO", "UTILS", "AUDIT", "VIEWER", "CTX"],
             fg_color=c["BG_PANEL"],
             selected_color=c["ACCENT"],
             text_color=c["TEXT_PRIMARY"],

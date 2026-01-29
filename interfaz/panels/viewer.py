@@ -1,5 +1,6 @@
 import os
 import re
+import threading
 import urllib.parse
 
 import customtkinter as ctk
@@ -64,18 +65,24 @@ class ViewerPanel(ctk.CTkFrame):
         url = self.url_entry.get().strip()
         if not url:
             return
-        try:
-            resp = requests.get(url, timeout=6)
-            content = resp.text
-            self.add_tab(url, content)
-            self.load_linked_files(url, content)
-            self.set_analysis(content)
-            if self.app.logger:
-                self.app.logger.viewer(f"URL cargada: {url} ({resp.status_code})")
-        except Exception as e:
-            self.add_tab("error", f"[!] Error al cargar URL: {e}")
-            if self.app.logger:
-                self.app.logger.error(f"Error al cargar URL: {e}", tag="VIEWER")
+        if self.app.logger:
+            self.app.logger.viewer(f"Cargando URL: {url}")
+
+        def run():
+            try:
+                resp = requests.get(url, timeout=8)
+                content = resp.text
+                self.after(0, lambda: self.add_tab(url, content))
+                self.after(0, lambda: self.set_analysis(content))
+                self.load_linked_files_async(url, content)
+                if self.app.logger:
+                    self.app.logger.viewer(f"URL cargada: {url} ({resp.status_code})")
+            except Exception as e:
+                self.after(0, lambda: self.add_tab("error", f"[!] Error al cargar URL: {e}"))
+                if self.app.logger:
+                    self.app.logger.error(f"Error al cargar URL: {e}", tag="VIEWER")
+
+        threading.Thread(target=run, daemon=True).start()
 
     def load_file(self):
         from tkinter import filedialog
@@ -97,6 +104,7 @@ class ViewerPanel(ctk.CTkFrame):
     def add_tab(self, title, content):
         c = self.app.c
         tab_title = title if len(title) < 20 else title[:17] + "..."
+        tab_title = self._unique_tab_title(tab_title)
         tab = self.tabs.add(tab_title)
         lines = content.splitlines()
         numbered = "\n".join(f"{i:>4} | {line}" for i, line in enumerate(lines, 1))
@@ -142,6 +150,16 @@ class ViewerPanel(ctk.CTkFrame):
 
         txt.configure(state="disabled")
 
+    def _unique_tab_title(self, title):
+        existing = getattr(self.tabs, "_tab_dict", {})
+        if title not in existing:
+            return title
+        base = title
+        idx = 2
+        while f"{base} ({idx})" in existing:
+            idx += 1
+        return f"{base} ({idx})"
+
     def load_linked_files(self, base_url, html):
         links = extract_links(html)
         if not links:
@@ -163,6 +181,30 @@ class ViewerPanel(ctk.CTkFrame):
             except Exception:
                 continue
 
+    def load_linked_files_async(self, base_url, html):
+        def run():
+            links = extract_links(html)
+            if not links:
+                return
+            count = 0
+            for link in links:
+                if count >= 8:
+                    break
+                if link.startswith("mailto:") or link.startswith("javascript:"):
+                    continue
+                full = urllib.parse.urljoin(base_url, link)
+                try:
+                    r = requests.get(full, timeout=6)
+                    ctype = r.headers.get("Content-Type", "")
+                    if any(t in ctype for t in ["text", "javascript", "json", "css"]):
+                        name = os.path.basename(urllib.parse.urlparse(full).path) or "resource"
+                        self.after(0, lambda n=name, t=r.text: self.add_tab(n, t))
+                        count += 1
+                except Exception:
+                    continue
+
+        threading.Thread(target=run, daemon=True).start()
+
     def set_analysis(self, text):
         summary = analyze_html(text)
         self.analysis.configure(state="normal")
@@ -173,3 +215,8 @@ class ViewerPanel(ctk.CTkFrame):
     def open_content(self, title, content):
         self.add_tab(title, content)
         self.set_analysis(content)
+
+    def open_url(self, url):
+        self.url_entry.delete(0, "end")
+        self.url_entry.insert(0, url)
+        self.load_url()

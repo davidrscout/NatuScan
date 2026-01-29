@@ -68,3 +68,6 @@ class AppLogger:
 
     def viewer(self, message):
         self.info(message, tag="VIEWER")
+
+    def audit(self, message):
+        self.info(message, tag="AUDIT")

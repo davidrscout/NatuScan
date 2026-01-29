@@ -13,6 +13,7 @@ from .payloads import build_msfvenom_cmd
 from .viewer import extract_links, analyze_html
 from .utils import append_hosts_entry, resolve_hosts_path
 from .listener import build_remote_read_command
+from .wordlists import WordlistManager
 
 __all__ = [
     "scan_target",
@@ -31,4 +32,5 @@ __all__ = [
     "append_hosts_entry",
     "resolve_hosts_path",
     "build_remote_read_command",
+    "WordlistManager",
 ]

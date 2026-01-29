@@ -21,6 +21,7 @@ Incluye escaneo, fuzzer web, generación de payloads, listener, utilidades, crip
 - **Cripto / Cracking**: Base64, binario/hex, hashes, y wrapper para John the Ripper.
 - **Visor HTML / Archivos**: analiza URL o archivo local, con tabs estilo mini‑VSCode y numeración de líneas.
 - **Logs**: vista separada para logs copiables y scrollables.
+- **Proxy Lab (Burp-lite)**: interceptación HTTP/HTTPS + repeater con vista raw/visual, soporte WebSocket (túnel), filtros y export HAR/JSON.
 
 ---
 
@@ -41,13 +42,25 @@ Incluye escaneo, fuzzer web, generación de payloads, listener, utilidades, crip
 
 ## 📦 Instalación
 
+### Opción recomendada (uv)
+
 ```bash
 git clone https://github.com/davidrscout/NatuScan.git
 cd cybernatu
 
-python -m venv venv
-source venv/bin/activate   # Linux/Mac
-venv\Scripts\activate      # Windows
+uv venv .venv
+source .venv/bin/activate   # Linux/Mac
+.venv\Scripts\activate      # Windows
+
+uv pip install -r requirements.txt
+```
+
+### Opción clásica (venv)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Linux/Mac
+.venv\Scripts\activate      # Windows
 
 pip install -r requirements.txt
 ```
@@ -59,6 +72,37 @@ pip install -r requirements.txt
 ```bash
 python tool.py
 ```
+
+### Windows (PowerShell) auto-setup
+
+Ejecuta el proyecto y crea/instala todo si hace falta (usa **uv** si esta disponible; si no, usa `python -m venv` + `pip`):
+
+```powershell
+.\run.ps1
+```
+
+### Linux/Mac auto-setup
+
+Ejecuta el proyecto y crea/instala todo si hace falta (usa **uv** si esta disponible; si no, usa `python3 -m venv` + `pip`):
+
+```bash
+./run.sh
+```
+
+### Proxy Lab (HTTPS MITM)
+
+Para interceptar HTTPS necesitas instalar el certificado CA local:
+
+1) Activa **MITM HTTPS** en el panel.
+2) Copia la ruta del CA (botón **Ver CA**).
+3) Instala el `ca_cert.pem` en tu sistema/navegador como CA de confianza.
+
+Nota: en Windows puedes abrir `certmgr.msc` → “Entidades de certificación raíz de confianza”.
+
+### Proxy Lab (HTTP/2 + WebSocket)
+
+- HTTP/2 funciona en **modo túnel** (CONNECT sin MITM).
+- WebSocket se soporta como **túnel** tras el handshake (no se parsean frames).
 
 ### Escáner
 1. Escribe IP o URL.
@@ -146,4 +190,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-

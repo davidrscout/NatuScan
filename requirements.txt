@@ -1,3 +1,9 @@
 customtkinter
 requests
 python-nmap
+tkinterweb
+cryptography
+httpx
+h2
+pywin32
+pycryptodome
