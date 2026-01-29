@@ -101,10 +101,10 @@ class UtilsPanel(ctk.CTkFrame):
                 self.app.logger.error(f"Error hosts: {e}", tag="UTILS")
 
     def _valid_ip(self, ip):
-        return bool(re.fullmatch(r\"\\d{1,3}(?:\\.\\d{1,3}){3}\", ip))
+        return bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", ip))
 
     def _valid_domain(self, domain):
-        return bool(re.fullmatch(r\"[A-Za-z0-9.-]+\", domain))
+        return bool(re.fullmatch(r"[A-Za-z0-9.-]+", domain))
 
     def choose_directory(self):
         from tkinter import filedialog
