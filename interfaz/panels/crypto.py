@@ -116,54 +116,106 @@ class CryptoPanel(ctk.CTkFrame):
 
     def do_b64_encode(self):
         data = self.input_text.get("1.0", "end").strip()
-        self._set_output(b64_encode(data))
-        if self.app.logger:
-            self.app.logger.crypto("Base64 encode ejecutado")
+        if not data:
+            self._set_output("[❌] Error: Ingresa texto primero")
+            return
+        try:
+            result = b64_encode(data)
+            self._set_output(f"✅ Base64 Encoded:\n{result}")
+            if self.app.logger:
+                self.app.logger.crypto("✅ Base64 encode ejecutado")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
     def do_b64_decode(self):
         data = self.input_text.get("1.0", "end").strip()
+        if not data:
+            self._set_output("[❌] Error: Ingresa Base64 primero")
+            return
         try:
-            self._set_output(b64_decode(data))
+            result = b64_decode(data)
+            self._set_output(f"✅ Base64 Decoded:\n{result}")
             if self.app.logger:
-                self.app.logger.crypto("Base64 decode ejecutado")
+                self.app.logger.crypto("✅ Base64 decode ejecutado")
         except ValueError:
-            self._set_output("[!] Base64 inválido")
+            self._set_output("[❌] Error: Base64 inválido")
             if self.app.logger:
                 self.app.logger.warn("Base64 inválido", tag="CRYPTO")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
     def do_hash(self, algo):
         data = self.input_text.get("1.0", "end").strip()
-        self._set_output(hash_text(data, algo))
-        if self.app.logger:
-            self.app.logger.crypto(f"Hash {algo} generado")
+        if not data:
+            self._set_output("[❌] Error: Ingresa texto primero")
+            return
+        try:
+            result = hash_text(data, algo)
+            self._set_output(f"✅ {algo.upper()} Hash:\n{result}")
+            if self.app.logger:
+                self.app.logger.crypto(f"✅ {algo} hash generado")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
     def do_to_bin(self):
         data = self.input_text.get("1.0", "end").strip()
-        self._set_output(text_to_bin(data))
-        if self.app.logger:
-            self.app.logger.crypto("Texto a binario")
+        if not data:
+            self._set_output("[❌] Error: Ingresa texto primero")
+            return
+        try:
+            result = text_to_bin(data)
+            self._set_output(f"✅ Binario:\n{result}")
+            if self.app.logger:
+                self.app.logger.crypto("✅ Texto a binario")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
-    def do_to_hex(self):
+    def do_hex(self):
         data = self.input_text.get("1.0", "end").strip()
-        self._set_output(text_to_hex(data))
-        if self.app.logger:
-            self.app.logger.crypto("Texto a hex")
+        if not data:
+            self._set_output("[❌] Error: Ingresa texto primero")
+            return
+        try:
+            result = text_to_hex(data)
+            self._set_output(f"✅ Hexadecimal:\n{result}")
+            if self.app.logger:
+                self.app.logger.crypto("✅ Texto a hex")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
     def do_bin_to_text(self):
+        data = self.input_text.get("1.0", "end").strip()
+        if not data:
+            self._set_output("[❌] Error: Ingresa binario primero")
+            return
         try:
-            data = self.input_text.get("1.0", "end").strip()
-            self._set_output(bin_to_text(data))
+            result = bin_to_text(data)
+            self._set_output(f"✅ Desde Binario:\n{result}")
             if self.app.logger:
-                self.app.logger.crypto("Binario a texto")
+                self.app.logger.crypto("✅ Binario a texto")
         except ValueError:
-            self._set_output("[!] Binario inválido (usa 8 bits separados por espacio)")
+            self._set_output("[❌] Error: Binario inválido (usa 8 bits separados por espacio)")
             if self.app.logger:
                 self.app.logger.warn("Binario inválido", tag="CRYPTO")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
 
     def do_hex_to_text(self):
         data = self.input_text.get("1.0", "end").strip().replace(" ", "")
+        if not data:
+            self._set_output("[❌] Error: Ingresa hex primero")
+            return
         try:
-            self._set_output(hex_to_text(data))
+            result = hex_to_text(data)
+            self._set_output(f"✅ Desde Hexadecimal:\n{result}")
+            if self.app.logger:
+                self.app.logger.crypto("✅ Hex a texto")
+        except (ValueError, TypeError):
+            self._set_output("[❌] Error: Hex inválido")
+            if self.app.logger:
+                self.app.logger.warn("Hex inválido", tag="CRYPTO")
+        except Exception as e:
+            self._set_output(f"[❌] Error: {e}")
             if self.app.logger:
                 self.app.logger.crypto("Hex a texto")
         except ValueError:
@@ -202,13 +254,13 @@ class CryptoPanel(ctk.CTkFrame):
         if self.wordlist_mode.get() == "Auto":
             self.refresh_wordlist_status()
         if not self.hash_file or not self.wordlist:
-            self.john_output.insert("end", "[!] Falta hashfile o wordlist.\n")
+            self.john_output.insert("end", "[❌] Error: Falta hashfile o wordlist.\n")
             if self.app.logger:
                 self.app.logger.warn("Falta hashfile o wordlist", tag="CRYPTO")
             return
         john_bin = shutil.which("john")
         if not john_bin:
-            self.john_output.insert("end", "[!] John the Ripper no está en PATH.\n")
+            self.john_output.insert("end", "[❌] Error: John the Ripper no está instalado (instala john).\n")
             if self.app.logger:
                 self.app.logger.error("John the Ripper no está en PATH", tag="CRYPTO")
             return
@@ -217,9 +269,14 @@ class CryptoPanel(ctk.CTkFrame):
         if fmt:
             cmd.append(f"--format={fmt}")
         cmd.append(self.hash_file)
-        self.john_output.insert("end", f"[*] Ejecutando: {' '.join(cmd)}\n")
+        self.john_output.insert("end", f"🔓 John the Ripper iniciado\n")
+        self.john_output.insert("end", f"   Hashfile: {os.path.basename(self.hash_file)}\n")
+        self.john_output.insert("end", f"   Wordlist: {os.path.basename(self.wordlist)}\n")
+        if fmt:
+            self.john_output.insert("end", f"   Formato: {fmt}\n")
+        self.john_output.insert("end", f"\n⏳ Ejecutando...\n\n")
         if self.app.logger:
-            self.app.logger.crypto("John the Ripper iniciado")
+            self.app.logger.crypto(f"🔓 John iniciado: {os.path.basename(self.hash_file)}")
         threading.Thread(target=self._run_john_proc, args=(cmd,), daemon=True).start()
 
     def set_wordlist_mode(self, value):

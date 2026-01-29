@@ -149,37 +149,60 @@ class FuzzerPanel(ctk.CTkFrame):
     def start_fuzzing(self):
         if self.fuzzing_active:
             self.fuzzing_active = False
-            self.btn_fuzz.configure(text="Iniciar Fuzzing (50 hilos)", fg_color=self.app.c["ACCENT"], hover_color=self.app.c["ACCENT_HOVER"])
-            self.log_fuzz("[-] Deteniendo...")
+            self.btn_fuzz.configure(text="▶ INICIAR FUZZING", fg_color=self.app.c["ACCENT"], hover_color=self.app.c["ACCENT_HOVER"])
+            self.log_fuzz("⏹️  Detenido por usuario\n")
             if self.app.logger:
-                self.app.logger.fuzzer("Deteniendo fuzzing...")
+                self.app.logger.fuzzer("Fuzzing cancelado")
             return
-        url = self.fuzz_url_entry.get()
-        if self.wordlist_mode.get() == "Auto":
-            self.refresh_wordlist_status()
+        
+        # Obtener URL
+        url = self.fuzz_url_entry.get().strip()
         if not url and self.app.context.current_target:
             url = self.app.context.get_target_as_url()
             self.set_target_url(url)
-        if not url or not self.wordlist_path:
-            self.log_fuzz("[!] Falta URL o diccionario.")
+        
+        if not url:
+            self.log_fuzz("[❌] Error: No hay URL. Ingresa una URL o escanea primero.\n")
             if self.app.logger:
-                self.app.logger.warn("Falta URL o diccionario", tag="FUZZER")
+                self.app.logger.warn("Fuzzer: Sin URL", tag="FUZZER")
             return
+        
+        # Validar URL
         if not url.startswith("http"):
             url = "http://" + url
+        
+        try:
+            urllib.parse.urlparse(url)
+        except Exception:
+            self.log_fuzz("[❌] Error: URL inválida\n")
+            return
+        
+        # Cargar diccionario si es Auto
+        if self.wordlist_mode.get() == "Auto":
+            self.refresh_wordlist_status()
+        
+        if not self.wordlist_path or not self.fuzz_words:
+            self.log_fuzz("[❌] Error: Carga un diccionario primero\n")
+            if self.app.logger:
+                self.app.logger.warn("Fuzzer: Sin diccionario", tag="FUZZER")
+            return
+        
         self._sync_target_from_url(url)
         self.app.context.clear_fuzzer_results()
         self.fuzzing_active = True
         self.fuzz_found = 0
         self.fuzz_errors = 0
-        self.btn_fuzz.configure(text="DETENER", fg_color=self.app.c["TEXT_DANGER"], hover_color="#dc2626")
+        self.btn_fuzz.configure(text="⏹️  DETENER", fg_color=self.app.c["TEXT_DANGER"], hover_color="#dc2626")
         self.fuzz_results.delete("1.0", "end")
-        self.log_fuzz(f"[*] Iniciando ataque a {url}")
+        self.log_fuzz(f"🔓 Fuzzing iniciado: {url}\n")
+        self.log_fuzz(f"   📋 Palabras: {len(self.fuzz_words)}\n")
+        self.log_fuzz(f"   🧵 Threads: 50\n")
+        self.log_fuzz(f"   ⏳ Esperando...\n\n")
         self.btn_open_first.configure(state="disabled")
         if self.app.logger:
-            self.app.logger.fuzzer(f"Fuzzing iniciado: {url}")
+            self.app.logger.fuzzer(f"🔓 Fuzzer iniciado: {url} ({len(self.fuzz_words)} palabras)")
             if self.wordlist_path:
-                self.app.logger.fuzzer(f"Wordlist: {self.wordlist_path}")
+                self.app.logger.fuzzer(f"   Wordlist: {self.wordlist_path}")
         threading.Thread(target=self._run_fuzz_series, args=(url,), daemon=True).start()
 
     def _sync_target_from_url(self, url):
@@ -215,22 +238,29 @@ class FuzzerPanel(ctk.CTkFrame):
         try:
             words = load_wordlist(self.wordlist_path)
         except Exception as e:
-            self.log_fuzz(f"[!] Error leyendo archivo: {e}")
+            self.log_fuzz(f"[❌] Error leyendo archivo: {e}\n")
             if self.app.logger:
                 self.app.logger.error(f"Error leyendo diccionario: {e}", tag="FUZZER")
             return
         total = len(words)
-        self.log_fuzz(f"[*] Diccionario cargado: {total} palabras.")
+        self.log_fuzz(f"[📋] Diccionario cargado: {total} palabras\n")
         if self.app.logger:
-            self.app.logger.fuzzer(f"Diccionario cargado: {total} palabras")
+            self.app.logger.fuzzer(f"📋 Diccionario cargado: {total} palabras")
+        
+        processed = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-            futures = []
+            futures = {}
             for word in words:
                 if not self.fuzzing_active:
                     break
-                futures.append(executor.submit(self.check_url, base_url, word))
-            concurrent.futures.wait(futures)
-
+                future = executor.submit(self.check_url, base_url, word)
+                futures[future] = word
+            
+            for future in concurrent.futures.as_completed(futures):
+                processed += 1
+                if processed % 100 == 0:
+                    self.after(0, lambda p=processed: self.log_fuzz(f"[⏳] Procesadas: {p}/{total}\n"))
+    
     def check_url(self, base_url, word):
         if not self.fuzzing_active:
             return
@@ -238,12 +268,23 @@ class FuzzerPanel(ctk.CTkFrame):
             code = check_url(base_url, word, timeout=3)
             if code is not None and code != 404:
                 target = f"{base_url}/{word}"
-                msg = f"[{code}] /{word}"
                 self.app.context.add_fuzzer_path(target)
                 self.fuzz_found += 1
+                
+                # Colorear por código
+                if code < 300:
+                    icon = "✅"
+                elif code < 400:
+                    icon = "ℹ️"
+                elif code == 403:
+                    icon = "🔒"
+                else:
+                    icon = "⚠️"
+                
+                msg = f"{icon} [{code}] /{word}\n"
+                self.after(0, lambda m=msg: self.log_fuzz(m))
                 if self.app.logger:
-                    self.app.logger.fuzzer(f"Encontrado {code}: {target}")
-                self.after(0, lambda: self.log_fuzz(msg))
+                    self.app.logger.fuzzer(f"   🎯 {icon} [{code}] /{word}")
                 if self.fuzz_found == 1:
                     self.after(0, lambda: self.btn_open_first.configure(state="normal"))
             elif code is None:

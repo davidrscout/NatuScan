@@ -71,30 +71,60 @@ class PayloadsPanel(ctk.CTkFrame):
 
     def generar_payload(self):
         seleccion = self.payload_os_menu.get()
-        lhost = self.payload_lhost.get()
-        lport = self.payload_lport.get()
-        nombre_base = self.payload_filename.get()
-        if not lhost or not lport or not nombre_base:
-            self.payload_output.delete("1.0", "end")
-            self.payload_output.insert("end", "[!] Falta IP, Puerto o Nombre.")
-            if self.app.logger:
-                self.app.logger.warn("Falta IP, puerto o nombre", tag="PAYLOADS")
+        lhost = self.payload_lhost.get().strip()
+        lport = self.payload_lport.get().strip()
+        nombre_base = self.payload_filename.get().strip()
+        
+        # Validar entrada
+        if not seleccion:
+            self._show_payload_error("Error: Selecciona un sistema objetivo")
             return
+        if not lhost:
+            self._show_payload_error("Error: Ingresa LHOST (tu IP)")
+            return
+        if not lport:
+            self._show_payload_error("Error: Ingresa LPORT")
+            return
+        if not nombre_base:
+            self._show_payload_error("Error: Ingresa nombre de archivo")
+            return
+        
+        # Validar puerto
+        try:
+            port_num = int(lport)
+            if port_num < 1 or port_num > 65535:
+                self._show_payload_error("Error: Puerto fuera de rango (1-65535)")
+                return
+        except ValueError:
+            self._show_payload_error("Error: Puerto debe ser un número")
+            return
+        
         datos = self.PAYLOADS_DB[seleccion]
         payload_code = datos["p"]
         file_format = datos["f"]
         extension = datos["ext"]
         full_filename = f"{nombre_base}.{extension}"
         cmd = build_msfvenom_cmd(payload_code, lhost, lport, file_format, full_filename)
+        
         self.payload_output.delete("1.0", "end")
+        self.payload_output.insert("end", f"🚀 Generador de Payload - msfvenom\n")
+        self.payload_output.insert("end", f"────────────────────────────────────\n\n")
+        self.payload_output.insert("end", f"  Sistema: {seleccion}\n")
+        self.payload_output.insert("end", f"  LHOST: {lhost}\n")
+        self.payload_output.insert("end", f"  LPORT: {lport}\n")
+        self.payload_output.insert("end", f"  Archivo: {full_filename}\n\n")
+        
         sistema = platform.system()
         if self.app.logger:
-            self.app.logger.payloads(f"Generando payload {full_filename} ({seleccion})")
+            self.app.logger.payloads(f"🚀 Generando payload {full_filename} ({seleccion})")
+        
         if sistema == "Windows":
-            self.payload_output.insert("end", "[*] Estás en Windows. Copia y pega en tu Kali:\n\n")
-            self.payload_output.insert("end", cmd)
+            self.payload_output.insert("end", f"[ℹ️] Estás en Windows. Copia y pega en tu Kali:\n\n")
+            self.payload_output.insert("end", f"{cmd}\n\n")
+            self.payload_output.insert("end", f"[ℹ️] Comando copiado. Úsalo en Kali Linux.\n")
         else:
-            self.payload_output.insert("end", f"[*] Generando {full_filename}...\n[*] Ejecutando: {cmd}\n\n")
+            self.payload_output.insert("end", f"⏳ Ejecutando msfvenom...\n\n")
+            self.payload_output.insert("end", f"Comando: {cmd}\n\n")
 
             def run_msf():
                 try:
@@ -114,7 +144,14 @@ class PayloadsPanel(ctk.CTkFrame):
         if self.app.logger:
             self.app.logger.payloads(f"Payload creado: {filename}")
 
+    def _show_payload_error(self, err):
+        """Mostrar error en el output"""
+        self.payload_output.delete("1.0", "end")
+        self.payload_output.insert("end", f"[❌] {err}\n")
+        if self.app.logger:
+            self.app.logger.error(f"Error: {err}", tag="PAYLOADS")
+
     def log_payload_error(self, err):
-        self.payload_output.insert("end", f"[!] Error: {err}\n¿msfvenom está en el PATH?")
+        self.payload_output.insert("end", f"[❌] Error: {err}\n¿msfvenom está en el PATH?")
         if self.app.logger:
             self.app.logger.error(f"Error generando payload: {err}", tag="PAYLOADS")

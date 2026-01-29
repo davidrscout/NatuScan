@@ -322,87 +322,160 @@ class BurpPanel(ctk.CTkFrame):
 
     def toggle_proxy(self):
         if self.proxy and self.proxy.is_running():
-            self.proxy.stop()
-            self.proxy = None
-            self.proxy_status.configure(text="OFFLINE", text_color=self.app.c["TEXT_DANGER"])
-            self.btn_proxy_toggle.configure(text="Iniciar Proxy")
-            if self.app.logger:
-                self.app.logger.utils("Proxy detenido")
+            try:
+                self.proxy.stop()
+                self.proxy = None
+                self.proxy_status.configure(text="OFFLINE", text_color=self.app.c["TEXT_DANGER"])
+                self.btn_proxy_toggle.configure(text="Iniciar Proxy")
+                if self.app.logger:
+                    self.app.logger.utils("[✅] Proxy detenido correctamente")
+            except Exception as e:
+                Toast(self.app, f"[❌] Error al detener proxy: {e}", self.app.c)
+                if self.app.logger:
+                    self.app.logger.utils(f"[❌] Error deteniendo proxy: {e}")
             return
+        
+        # Validate and get host
         host = self.proxy_host.get().strip() or "127.0.0.1"
+        if not host:
+            Toast(self.app, "[❌] Host del proxy requerido", self.app.c)
+            return
+        
+        # Validate and get port
         port_text = self.proxy_port.get().strip() or "8080"
         try:
             port = int(port_text)
-        except Exception:
-            Toast(self.app, "Puerto inválido", self.app.c)
+            if not (1 <= port <= 65535):
+                Toast(self.app, "[❌] Puerto debe estar entre 1 y 65535", self.app.c)
+                return
+        except ValueError:
+            Toast(self.app, "[❌] Puerto debe ser un número válido", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Puerto inválido: {port_text}")
             return
-        self.proxy = ProxyController(host, port, on_event=self._proxy_event, logger=self.app.logger)
+        
+        # Create and start proxy
         try:
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Iniciando proxy en {host}:{port}...")
+            self.proxy = ProxyController(host, port, on_event=self._proxy_event, logger=self.app.logger)
             self.proxy.start()
+            
+            self.proxy_status.configure(text=f"ONLINE {host}:{port}", text_color=self.app.c["TEXT_SUCCESS"])
+            self.btn_proxy_toggle.configure(text="Detener Proxy")
+            self.toggle_intercept()
+            self.toggle_mitm()
+            
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] Proxy iniciado en {host}:{port}")
+        except OSError as e:
+            self.proxy = None
+            error_msg = f"[❌] Error de red al iniciar proxy: {e}"
+            Toast(self.app, error_msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(error_msg)
         except Exception as exc:
             self.proxy = None
-            Toast(self.app, f"No se pudo iniciar proxy: {exc}", self.app.c)
-            return
-        self.proxy_status.configure(text=f"ONLINE {host}:{port}", text_color=self.app.c["TEXT_SUCCESS"])
-        self.btn_proxy_toggle.configure(text="Detener Proxy")
-        self.toggle_intercept()
-        self.toggle_mitm()
-        if self.app.logger:
-            self.app.logger.utils(f"Proxy iniciado en {host}:{port}")
+            error_msg = f"[❌] No se pudo iniciar proxy: {exc}"
+            Toast(self.app, error_msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(error_msg)
 
     def toggle_intercept(self):
         enabled = bool(self.intercept_check.get())
-        if self.proxy:
-            self.proxy.set_intercept(enabled)
-        if not enabled and self.pending_ids:
-            for item_id in list(self.pending_ids):
-                item = self.proxy_items.get(item_id)
-                if not item:
-                    continue
-                item.action = "forward"
-                item.event.set()
-            self.pending_ids.clear()
-            self._update_queue_label()
+        try:
+            if self.proxy:
+                self.proxy.set_intercept(enabled)
+            
+            if not enabled and self.pending_ids:
+                for item_id in list(self.pending_ids):
+                    item = self.proxy_items.get(item_id)
+                    if not item:
+                        continue
+                    item.action = "forward"
+                    item.event.set()
+                self.pending_ids.clear()
+                self._update_queue_label()
+                if self.app.logger:
+                    self.app.logger.utils("[✅] Solicitudes pendientes reenviadas automáticamente")
+            
+            if self.app.logger:
+                status = "✅ activo" if enabled else "⛔ desactivado"
+                self.app.logger.utils(f"[{status}] Intercepción de solicitudes")
+        except Exception as e:
+            Toast(self.app, f"[❌] Error en intercepción: {e}", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Error toggling intercept: {e}")
 
     def toggle_mitm(self):
         enabled = bool(self.mitm_check.get())
         if not self.proxy:
+            if self.app.logger:
+                self.app.logger.utils("[⚠️] Proxy no está activo para MITM")
             return
-        if enabled:
-            try:
+        
+        try:
+            if enabled:
+                if self.app.logger:
+                    self.app.logger.utils("[⏳] Preparando CA para MITM HTTPS...")
                 self.cert_manager.ensure_ca()
-            except Exception as exc:
-                Toast(self.app, f"No se pudo preparar CA: {exc}", self.app.c)
-                self.mitm_check.deselect()
-                return
-        self.proxy.set_mitm(enabled, cert_manager=self.cert_manager)
-        if self.app.logger:
-            self.app.logger.utils(f"MITM HTTPS {'activo' if enabled else 'desactivado'}")
+                
+            self.proxy.set_mitm(enabled, cert_manager=self.cert_manager)
+            
+            if self.app.logger:
+                status = "✅ activo" if enabled else "⛔ desactivado"
+                self.app.logger.utils(f"[{status}] MITM HTTPS")
+        except Exception as exc:
+            msg = f"[❌] No se pudo preparar CA: {exc}"
+            Toast(self.app, msg, self.app.c)
+            self.mitm_check.deselect()
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def open_ca_path(self):
         try:
             path = self.cert_manager.get_ca_cert_path()
+            if not path:
+                Toast(self.app, "[⚠️] No se encontró ruta de CA", self.app.c)
+                return
+                
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(path)
+                Toast(self.app, f"[✅] Ruta CA copiada al portapapeles", self.app.c)
+                if self.app.logger:
+                    self.app.logger.utils(f"[✅] CA copiada: {path}")
+            except Exception:
+                Toast(self.app, f"[📋] CA en: {path}", self.app.c)
+                if self.app.logger:
+                    self.app.logger.utils(f"[📋] Ruta CA: {path}")
         except Exception as exc:
-            Toast(self.app, str(exc), self.app.c)
-            return
-        try:
-            self.clipboard_clear()
-            self.clipboard_append(path)
-            Toast(self.app, f"Ruta CA copiada: {path}", self.app.c)
-        except Exception:
-            Toast(self.app, f"CA en: {path}", self.app.c)
+            msg = f"[❌] Error accediendo CA: {exc}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def clear_proxy_history(self):
-        self.proxy_items.clear()
-        self.pending_ids.clear()
-        self.current_proxy_id = None
-        for btn in self.proxy_buttons.values():
-            btn.destroy()
-        self.proxy_buttons.clear()
-        self.proxy_request.delete("1.0", "end")
-        self.proxy_response_raw.delete("1.0", "end")
-        self.proxy_resp_status.configure(text="Respuesta: -")
-        self._update_queue_label()
+        try:
+            self.proxy_items.clear()
+            self.pending_ids.clear()
+            self.current_proxy_id = None
+            for btn in self.proxy_buttons.values():
+                btn.destroy()
+            self.proxy_buttons.clear()
+            self.proxy_request.delete("1.0", "end")
+            self.proxy_response_raw.delete("1.0", "end")
+            self.proxy_resp_status.configure(text="Respuesta: -")
+            self._update_queue_label()
+            
+            Toast(self.app, "[✅] Historial de proxy limpiado", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[✅] Historial de proxy borrado")
+        except Exception as e:
+            msg = f"[❌] Error limpiando historial: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def _proxy_event(self, event):
         self.after(0, lambda: self._handle_proxy_event(event))
@@ -542,32 +615,71 @@ class BurpPanel(ctk.CTkFrame):
     def forward_request(self):
         item = self._current_item()
         if not item:
+            Toast(self.app, "[⚠️] No hay solicitud seleccionada", self.app.c)
             return
         if item.id not in self.pending_ids:
+            Toast(self.app, "[⚠️] Solicitud no está pendiente", self.app.c)
             return
-        item.modified_raw = self.proxy_request.get("1.0", "end")
-        item.action = "forward"
-        item.event.set()
-        self.pending_ids.discard(item.id)
-        self._update_queue_label()
+        
+        try:
+            item.modified_raw = self.proxy_request.get("1.0", "end")
+            item.action = "forward"
+            item.event.set()
+            self.pending_ids.discard(item.id)
+            self._update_queue_label()
+            
+            Toast(self.app, f"[✅] {item.method} {item.url.split('/')[-1]} reenviada", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] Solicitud reenviada: {item.method} {item.url}")
+        except Exception as e:
+            msg = f"[❌] Error reenviando solicitud: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def drop_request(self):
         item = self._current_item()
         if not item:
+            Toast(self.app, "[⚠️] No hay solicitud seleccionada", self.app.c)
             return
         if item.id not in self.pending_ids:
+            Toast(self.app, "[⚠️] Solicitud no está pendiente", self.app.c)
             return
-        item.action = "drop"
-        item.event.set()
-        self.pending_ids.discard(item.id)
-        self._update_queue_label()
+        
+        try:
+            item.action = "drop"
+            item.event.set()
+            self.pending_ids.discard(item.id)
+            self._update_queue_label()
+            
+            Toast(self.app, f"[🚫] {item.method} {item.url.split('/')[-1]} descartada", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[🚫] Solicitud descartada: {item.method} {item.url}")
+        except Exception as e:
+            msg = f"[❌] Error descartando solicitud: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def send_to_repeater(self):
         item = self._current_item()
         if not item:
+            Toast(self.app, "[⚠️] No hay solicitud seleccionada", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[⚠️] Intento de enviar a repeater sin solicitud")
             return
-        self._load_item_into_repeater(item)
-        self.tabs.set("Repeater")
+        
+        try:
+            self._load_item_into_repeater(item)
+            self.tabs.set("Repeater")
+            Toast(self.app, "[✅] Solicitud enviada a Repeater", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] A Repeater: {item.method} {item.url}")
+        except Exception as e:
+            msg = f"[❌] Error enviando a repeater: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def _current_item(self):
         if not self.current_proxy_id:
@@ -575,45 +687,87 @@ class BurpPanel(ctk.CTkFrame):
         return self.proxy_items.get(self.current_proxy_id)
 
     def _load_item_into_repeater(self, item: ProxyItem):
-        self.repeat_method.set(item.method)
-        self.repeat_url.delete(0, "end")
-        self.repeat_url.insert(0, item.url)
-        self.repeat_headers.delete("1.0", "end")
-        headers_text = "\n".join(f"{k}: {v}" for k, v in item.headers.items())
-        self.repeat_headers.insert("end", headers_text)
-        self.repeat_body.delete("1.0", "end")
         try:
-            body_text = item.body.decode("utf-8")
-        except Exception:
-            body_text = item.body.decode("latin-1", errors="replace")
-        self.repeat_body.insert("end", body_text)
+            self.repeat_method.set(item.method or "GET")
+            self.repeat_url.delete(0, "end")
+            self.repeat_url.insert(0, item.url or "")
+            self.repeat_headers.delete("1.0", "end")
+            
+            if item.headers:
+                headers_text = "\n".join(f"{k}: {v}" for k, v in item.headers.items())
+                self.repeat_headers.insert("end", headers_text)
+            
+            self.repeat_body.delete("1.0", "end")
+            if item.body:
+                try:
+                    body_text = item.body.decode("utf-8")
+                except UnicodeDecodeError:
+                    body_text = item.body.decode("latin-1", errors="replace")
+                self.repeat_body.insert("end", body_text)
+        except Exception as e:
+            msg = f"[❌] Error cargando en repeater: {e}"
+            if self.app.logger:
+                self.app.logger.utils(msg)
+            raise
 
     def send_repeater(self):
         method = self.repeat_method.get().strip().upper()
         url = self.repeat_url.get().strip()
-        if not url:
-            Toast(self.app, "URL inválida", self.app.c)
+        
+        # Validate method
+        if not method or method not in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
+            Toast(self.app, "[❌] Método HTTP inválido", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Método inválido: {method}")
             return
-        headers = self._parse_headers(self.repeat_headers.get("1.0", "end"))
-        body = self.repeat_body.get("1.0", "end").rstrip("\n").encode("utf-8")
+        
+        # Validate URL
+        if not url:
+            Toast(self.app, "[❌] URL requerida", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[❌] URL vacía en repeater")
+            return
+        
+        # Add protocol if missing
         if not url.startswith("http://") and not url.startswith("https://"):
             url = "http://" + url
+        
+        headers = self._parse_headers(self.repeat_headers.get("1.0", "end"))
+        body = self.repeat_body.get("1.0", "end").rstrip("\n").encode("utf-8")
         use_http2 = bool(self.repeat_http2.get()) if hasattr(self, "repeat_http2") else False
 
         def run():
             try:
+                if self.app.logger:
+                    self.app.logger.utils(f"[⏳] Enviando {method} {url}...")
+                    
                 normalized = normalize_url(url, headers)
                 raw_req = build_raw_request(method, normalized, headers, body)
                 resp = send_http_request(method, normalized, headers, body, http2=use_http2)
+                
                 self.after(0, lambda: self._render_repeater_response(raw_req, resp))
+                
                 if self.app.logger:
-                    self.app.logger.utils(f"Repeater {method} {normalized} -> {resp.status}")
+                    self.app.logger.utils(f"[✅] Repeater {method} {normalized} -> {resp.status}")
+            except ValueError as e:
+                msg = f"[❌] URL inválida: {e}"
+                self.after(0, lambda: self._render_repeater_error(msg))
+                if self.app.logger:
+                    self.app.logger.utils(msg)
+            except ConnectionError as e:
+                msg = f"[❌] Error de conexión: {e}"
+                self.after(0, lambda: self._render_repeater_error(msg))
+                if self.app.logger:
+                    self.app.logger.utils(msg)
             except Exception as exc:
-                self.after(0, lambda: self._render_repeater_error(str(exc)))
+                msg = f"[❌] Error en repeater: {exc}"
+                self.after(0, lambda: self._render_repeater_error(msg))
                 if self.app.logger:
-                    self.app.logger.error(f"Repeater error: {exc}", tag="UTILS")
+                    self.app.logger.error(msg, tag="BURP")
 
         threading.Thread(target=run, daemon=True).start()
+        if self.app.logger:
+            self.app.logger.utils(f"[📤] Solicitud {method} en progreso...")
 
     def _render_repeater_response(self, raw_req, response):
         self.repeater_request_raw.delete("1.0", "end")
@@ -625,7 +779,10 @@ class BurpPanel(ctk.CTkFrame):
     def _render_repeater_error(self, msg):
         self.repeater_request_raw.delete("1.0", "end")
         self.repeater_response_raw.delete("1.0", "end")
-        self.repeater_response_raw.insert("end", msg)
+        error_text = f"❌ ERROR:\n{msg}" if not msg.startswith("[") else msg
+        self.repeater_response_raw.insert("end", error_text)
+        if self.app.logger:
+            self.app.logger.utils(msg)
 
     def _render_visual(self, widget, response):
         body_text = pretty_body(response.body, response.headers)
@@ -654,8 +811,11 @@ class BurpPanel(ctk.CTkFrame):
     def export_json(self):
         items = self._filtered_items()
         if not items:
-            Toast(self.app, "No hay items para exportar", self.app.c)
+            Toast(self.app, "[⚠️] No hay items para exportar", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[⚠️] No hay items para exportar en JSON")
             return
+        
         path = filedialog.asksaveasfilename(
             title="Export JSON",
             defaultextension=".json",
@@ -663,18 +823,37 @@ class BurpPanel(ctk.CTkFrame):
         )
         if not path:
             return
-        payload = [self._item_to_dict(item) for item in items]
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
-        Toast(self.app, f"Exportado: {path}", self.app.c)
-        if self.app.logger:
-            self.app.logger.utils(f"Export JSON: {path}")
+        
+        try:
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Exportando {len(items)} items a JSON...")
+                
+            payload = [self._item_to_dict(item) for item in items]
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            
+            Toast(self.app, f"[✅] Exportado: {path}", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] JSON exportado: {path} ({len(items)} items)")
+        except IOError as e:
+            msg = f"[❌] Error escribiendo archivo: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
+        except Exception as e:
+            msg = f"[❌] Error durante exportación: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
 
     def export_har(self):
         items = self._filtered_items()
         if not items:
-            Toast(self.app, "No hay items para exportar", self.app.c)
+            Toast(self.app, "[⚠️] No hay items para exportar", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[⚠️] No hay items para exportar en HAR")
             return
+        
         path = filedialog.asksaveasfilename(
             title="Export HAR",
             defaultextension=".har",
@@ -682,17 +861,35 @@ class BurpPanel(ctk.CTkFrame):
         )
         if not path:
             return
-        entries = [self._item_to_har(item) for item in items]
-        payload = {
-            "log": {
-                "version": "1.2",
-                "creator": {"name": "CyberNatu", "version": "2.x"},
-                "entries": entries,
+        
+        try:
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Exportando {len(items)} items a HAR...")
+                
+            entries = [self._item_to_har(item) for item in items]
+            payload = {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "CyberNatu", "version": "2.x"},
+                    "entries": entries,
+                }
             }
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
-        Toast(self.app, f"Exportado: {path}", self.app.c)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            
+            Toast(self.app, f"[✅] Exportado: {path}", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] HAR exportado: {path} ({len(items)} items)")
+        except IOError as e:
+            msg = f"[❌] Error escribiendo archivo: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
+        except Exception as e:
+            msg = f"[❌] Error durante exportación HAR: {e}"
+            Toast(self.app, msg, self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(msg)
         if self.app.logger:
             self.app.logger.utils(f"Export HAR: {path}")
 

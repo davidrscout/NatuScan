@@ -54,11 +54,26 @@ class ListenerPanel(ctk.CTkFrame):
     def start_python_listener(self):
         try:
             port = int(self.listen_port.get())
-        except ValueError:
+            if port < 1 or port > 65535:
+                raise ValueError("Puerto fuera de rango (1-65535)")
+        except ValueError as e:
+            from ..ui_constants import Toast
+            Toast(self.app, f"Puerto inválido: {e}", self.app.c)
+            if self.app.logger:
+                self.app.logger.warn(f"Puerto inválido: {e}", tag="LISTENER")
             return
+        
         self.app.context.listener_port = port
         if self.app.logger:
-            self.app.logger.listener(f"Listener abierto en 0.0.0.0:{port}")
+            import socket
+            try:
+                hostname = socket.gethostname()
+                ip = socket.gethostbyname(hostname)
+                self.app.logger.listener(f"🔊 Listener abierto en {ip}:{port}")
+                self.app.logger.listener(f"   Esperando conexión...")
+            except:
+                self.app.logger.listener(f"🔊 Listener abierto en 0.0.0.0:{port}")
+        
         self.btn_listen.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.is_listening = True
@@ -67,27 +82,51 @@ class ListenerPanel(ctk.CTkFrame):
     def listen_thread(self, port):
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.server_socket.bind(('0.0.0.0', port))
             self.server_socket.listen(1)
+            self.server_socket.settimeout(None)  # Espera indefinida
+            
+            if self.app.logger:
+                self.app.logger.listener(f"⏳ En espera de conexión en puerto {port}...")
+            
             conn, addr = self.server_socket.accept()
             self.client_socket = conn
+            self.client_socket.settimeout(None)
+            
             if self.app.logger:
-                self.app.logger.listener(f"Conexión entrante desde {addr[0]}:{addr[1]}")
+                self.app.logger.listener(f"✅ ¡Conexión recibida! {addr[0]}:{addr[1]}")
+            
             self.after(0, lambda: self.show_modal(addr))
+            
             while self.is_listening:
                 try:
                     data = conn.recv(4096)
                     if not data:
+                        if self.app.logger:
+                            self.app.logger.listener("❌ Conexión cerrada por el cliente")
                         break
                     msg = data.decode('utf-8', errors='ignore')
                     self.after(0, lambda m=msg: self.append_modal(m))
-                except Exception:
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    if self.app.logger:
+                        self.app.logger.error(f"Error recibiendo datos: {e}", tag="LISTENER")
                     break
+        except OSError as e:
+            if "Address already in use" in str(e):
+                error_msg = f"❌ Puerto {port} ya está en uso"
+            else:
+                error_msg = f"❌ Error socket: {e}"
+            self.after(0, lambda: self.show_error(error_msg))
+            if self.app.logger:
+                self.app.logger.error(error_msg, tag="LISTENER")
         except Exception as e:
             if self.is_listening:
-                self.after(0, lambda: self.append_modal(f"[!] Error socket: {e}\n"))
+                self.after(0, lambda: self.show_error(f"❌ Error: {e}"))
                 if self.app.logger:
-                    self.app.logger.error(f"Error socket: {e}", tag="LISTENER")
+                    self.app.logger.error(f"Error en listener: {e}", tag="LISTENER")
         finally:
             self.stop_listener()
 
@@ -200,6 +239,11 @@ class ListenerPanel(ctk.CTkFrame):
             if self.app.logger:
                 self.app.logger.viewer("Archivo remoto abierto en Viewer")
 
+    def show_error(self, msg):
+        """Mostrar error en modal o alerta"""
+        from ..ui_constants import Toast
+        Toast(self.app, msg.replace("❌ ", ""), self.app.c)
+
     def stop_listener(self):
         self.is_listening = False
         if self.client_socket:
@@ -215,7 +259,7 @@ class ListenerPanel(ctk.CTkFrame):
                 pass
             self.server_socket = None
         if self.app.logger:
-            self.app.logger.listener("Listener detenido")
+            self.app.logger.listener("🔌 Listener detenido")
         self.after(0, self.reset_ui)
 
     def reset_ui(self):

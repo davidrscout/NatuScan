@@ -64,91 +64,149 @@ class ViewerPanel(ctk.CTkFrame):
     def load_url(self):
         url = self.url_entry.get().strip()
         if not url:
+            from ..ui_constants import Toast
+            Toast(self.app, "[❌] URL requerida", self.app.c)
+            if self.app.logger:
+                self.app.logger.utils("[❌] Intento de cargar URL vacía")
             return
+        
+        # Add protocol if missing
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+            self.url_entry.delete(0, "end")
+            self.url_entry.insert(0, url)
+        
         if self.app.logger:
-            self.app.logger.viewer(f"Cargando URL: {url}")
+            self.app.logger.utils(f"[⏳] Cargando URL: {url}")
 
         def run():
             try:
-                resp = requests.get(url, timeout=8)
+                if self.app.logger:
+                    self.app.logger.utils(f"[🌐] Conectando a {url}...")
+                    
+                resp = requests.get(url, timeout=10)
                 content = resp.text
+                
                 self.after(0, lambda: self.add_tab(url, content))
                 self.after(0, lambda: self.set_analysis(content))
                 self.load_linked_files_async(url, content)
+                
                 if self.app.logger:
-                    self.app.logger.viewer(f"URL cargada: {url} ({resp.status_code})")
+                    self.app.logger.utils(f"[✅] URL cargada: {resp.status_code} {url}")
+            except requests.Timeout:
+                error_msg = "[❌] Timeout: servidor tardó demasiado en responder"
+                self.after(0, lambda: self.add_tab("error", error_msg))
+                if self.app.logger:
+                    self.app.logger.utils(error_msg)
+            except requests.ConnectionError as e:
+                error_msg = f"[❌] Error de conexión: {e}"
+                self.after(0, lambda: self.add_tab("error", error_msg))
+                if self.app.logger:
+                    self.app.logger.utils(error_msg)
             except Exception as e:
-                self.after(0, lambda: self.add_tab("error", f"[!] Error al cargar URL: {e}"))
+                error_msg = f"[❌] Error al cargar URL: {e}"
+                self.after(0, lambda: self.add_tab("error", error_msg))
                 if self.app.logger:
-                    self.app.logger.error(f"Error al cargar URL: {e}", tag="VIEWER")
+                    self.app.logger.utils(error_msg)
 
         threading.Thread(target=run, daemon=True).start()
 
     def load_file(self):
         from tkinter import filedialog
-        path = filedialog.askopenfilename(title="Selecciona archivo")
-        if not path:
-            return
         try:
-            with open(path, "r", errors="ignore") as f:
+            path = filedialog.askopenfilename(title="Selecciona archivo")
+            if not path:
+                if self.app.logger:
+                    self.app.logger.utils("[⚠️] Selección de archivo cancelada")
+                return
+            
+            if not os.path.isfile(path):
+                from ..ui_constants import Toast
+                Toast(self.app, "[❌] Archivo no existe", self.app.c)
+                if self.app.logger:
+                    self.app.logger.utils(f"[❌] Archivo no encontrado: {path}")
+                return
+            
+            if self.app.logger:
+                self.app.logger.utils(f"[⏳] Leyendo archivo: {path}")
+            
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
+            
             self.add_tab(os.path.basename(path), content)
             self.set_analysis(content)
+            
             if self.app.logger:
-                self.app.logger.viewer(f"Archivo cargado: {path}")
+                self.app.logger.utils(f"[✅] Archivo cargado: {path} ({len(content)} bytes)")
+        except IOError as e:
+            error_msg = f"[❌] Error de lectura: {e}"
+            self.add_tab("error", error_msg)
+            if self.app.logger:
+                self.app.logger.utils(error_msg)
         except Exception as e:
-            self.add_tab("error", f"[!] Error al leer archivo: {e}")
+            error_msg = f"[❌] Error inesperado: {e}"
+            self.add_tab("error", error_msg)
             if self.app.logger:
-                self.app.logger.error(f"Error al leer archivo: {e}", tag="VIEWER")
+                self.app.logger.utils(error_msg)
 
     def add_tab(self, title, content):
-        c = self.app.c
-        tab_title = title if len(title) < 20 else title[:17] + "..."
-        tab_title = self._unique_tab_title(tab_title)
-        tab = self.tabs.add(tab_title)
-        lines = content.splitlines()
-        numbered = "\n".join(f"{i:>4} | {line}" for i, line in enumerate(lines, 1))
-        txt = ctk.CTkTextbox(tab, font=MONO_FONT, fg_color="#1e1e1e", text_color="#d4d4d4")
-        txt.pack(fill="both", expand=True, padx=4, pady=4)
-        txt.insert("end", numbered)
         try:
-            txt.tag_config("ln", foreground="#6b7280")
-            txt.tag_config("tag", foreground="#569cd6")
-            txt.tag_config("attr", foreground="#9cdcfe")
-            txt.tag_config("string", foreground="#ce9178")
-            txt.tag_config("comment", foreground="#6a9955")
-            txt.tag_config("punct", foreground="#d4d4d4")
+            c = self.app.c
+            tab_title = title if len(title) < 20 else title[:17] + "..."
+            tab_title = self._unique_tab_title(tab_title)
+            tab = self.tabs.add(tab_title)
+            
+            lines = content.splitlines()
+            numbered = "\n".join(f"{i:>4} | {line}" for i, line in enumerate(lines, 1))
+            txt = ctk.CTkTextbox(tab, font=MONO_FONT, fg_color="#1e1e1e", text_color="#d4d4d4")
+            txt.pack(fill="both", expand=True, padx=4, pady=4)
+            txt.insert("end", numbered)
+            
+            try:
+                txt.tag_config("ln", foreground="#6b7280")
+                txt.tag_config("tag", foreground="#569cd6")
+                txt.tag_config("attr", foreground="#9cdcfe")
+                txt.tag_config("string", foreground="#ce9178")
+                txt.tag_config("comment", foreground="#6a9955")
+                txt.tag_config("punct", foreground="#d4d4d4")
 
-            for i, line in enumerate(lines, 1):
-                base = f"{i}.0"
-                txt.tag_add("ln", base, f"{i}.6")
+                for i, line in enumerate(lines, 1):
+                    base = f"{i}.0"
+                    txt.tag_add("ln", base, f"{i}.6")
 
-                content_start = 6
-                raw = line
+                    content_start = 6
+                    raw = line
 
-                for m in re.finditer(r"<!--.*?-->", raw):
-                    s = content_start + m.start()
-                    e = content_start + m.end()
-                    txt.tag_add("comment", f"{i}.{s}", f"{i}.{e}")
+                    for m in re.finditer(r"<!--.*?-->", raw):
+                        s = content_start + m.start()
+                        e = content_start + m.end()
+                        txt.tag_add("comment", f"{i}.{s}", f"{i}.{e}")
 
-                for m in re.finditer(r"\"[^\"]*\"|'[^']*'", raw):
-                    s = content_start + m.start()
-                    e = content_start + m.end()
-                    txt.tag_add("string", f"{i}.{s}", f"{i}.{e}")
+                    for m in re.finditer(r"\"[^\"]*\"|'[^']*'", raw):
+                        s = content_start + m.start()
+                        e = content_start + m.end()
+                        txt.tag_add("string", f"{i}.{s}", f"{i}.{e}")
 
-                for m in re.finditer(r"</?[\w:-]+", raw):
-                    s = content_start + m.start()
-                    e = content_start + m.end()
-                    txt.tag_add("tag", f"{i}.{s}", f"{i}.{e}")
+                    for m in re.finditer(r"</?[\w:-]+", raw):
+                        s = content_start + m.start()
+                        e = content_start + m.end()
+                        txt.tag_add("tag", f"{i}.{s}", f"{i}.{e}")
 
-                for m in re.finditer(r"\b[\w:-]+(?=\=)", raw):
-                    s = content_start + m.start()
-                    e = content_start + m.end()
-                    txt.tag_add("attr", f"{i}.{s}", f"{i}.{e}")
-        except Exception:
-            pass
+                    for m in re.finditer(r"\b[\w:-]+(?=\=)", raw):
+                        s = content_start + m.start()
+                        e = content_start + m.end()
+                        txt.tag_add("attr", f"{i}.{s}", f"{i}.{e}")
+            except Exception as e:
+                # Syntax highlighting failed, but content is still visible
+                if self.app.logger:
+                    self.app.logger.utils(f"[⚠️] Error en colorizado: {e}")
 
-        txt.configure(state="disabled")
+            txt.configure(state="disabled")
+            if self.app.logger:
+                self.app.logger.utils(f"[✅] Pestaña creada: {tab_title} ({len(lines)} líneas)")
+        except Exception as e:
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Error creando pestaña: {e}")
 
     def _unique_tab_title(self, title):
         existing = getattr(self.tabs, "_tab_dict", {})
@@ -183,34 +241,61 @@ class ViewerPanel(ctk.CTkFrame):
 
     def load_linked_files_async(self, base_url, html):
         def run():
-            links = extract_links(html)
-            if not links:
-                return
-            count = 0
-            for link in links:
-                if count >= 8:
-                    break
-                if link.startswith("mailto:") or link.startswith("javascript:"):
-                    continue
-                full = urllib.parse.urljoin(base_url, link)
-                try:
-                    r = requests.get(full, timeout=6)
-                    ctype = r.headers.get("Content-Type", "")
-                    if any(t in ctype for t in ["text", "javascript", "json", "css"]):
-                        name = os.path.basename(urllib.parse.urlparse(full).path) or "resource"
-                        self.after(0, lambda n=name, t=r.text: self.add_tab(n, t))
-                        count += 1
-                except Exception:
-                    continue
+            try:
+                links = extract_links(html)
+                if not links:
+                    if self.app.logger:
+                        self.app.logger.utils("[ℹ️] No se encontraron enlaces en el HTML")
+                    return
+                
+                if self.app.logger:
+                    self.app.logger.utils(f"[🔗] Cargando recursos vinculados... ({len(links)} encontrados)")
+                
+                count = 0
+                for link in links:
+                    if count >= 8:
+                        break
+                    if link.startswith("mailto:") or link.startswith("javascript:"):
+                        continue
+                    full = urllib.parse.urljoin(base_url, link)
+                    try:
+                        r = requests.get(full, timeout=6)
+                        ctype = r.headers.get("Content-Type", "")
+                        if any(t in ctype for t in ["text", "javascript", "json", "css"]):
+                            name = os.path.basename(urllib.parse.urlparse(full).path) or "resource"
+                            self.after(0, lambda n=name, t=r.text: self.add_tab(n, t))
+                            count += 1
+                            if self.app.logger:
+                                self.app.logger.utils(f"[✅] Recurso cargado: {name}")
+                    except Exception as e:
+                        if self.app.logger:
+                            self.app.logger.utils(f"[⚠️] Saltando recurso: {e}")
+                        continue
+                
+                if self.app.logger:
+                    self.app.logger.utils(f"[✅] {count} recursos cargados")
+            except Exception as e:
+                if self.app.logger:
+                    self.app.logger.utils(f"[❌] Error cargando recursos: {e}")
 
         threading.Thread(target=run, daemon=True).start()
 
     def set_analysis(self, text):
-        summary = analyze_html(text)
-        self.analysis.configure(state="normal")
-        self.analysis.delete("1.0", "end")
-        self.analysis.insert("end", summary)
-        self.analysis.configure(state="disabled")
+        try:
+            summary = analyze_html(text)
+            self.analysis.configure(state="normal")
+            self.analysis.delete("1.0", "end")
+            self.analysis.insert("end", f"📊 Análisis de HTML:\n\n{summary}")
+            self.analysis.configure(state="disabled")
+            if self.app.logger:
+                self.app.logger.utils("[✅] Análisis completado")
+        except Exception as e:
+            self.analysis.configure(state="normal")
+            self.analysis.delete("1.0", "end")
+            self.analysis.insert("end", f"[❌] Error en análisis: {e}")
+            self.analysis.configure(state="disabled")
+            if self.app.logger:
+                self.app.logger.utils(f"[❌] Error analizando HTML: {e}")
 
     def open_content(self, title, content):
         self.add_tab(title, content)

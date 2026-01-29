@@ -84,9 +84,9 @@ class ScannerPanel(ctk.CTkFrame):
             self.app.logger.scan(f"🔍 Iniciando escaneo automático de: {target}")
             if resolved and resolved != target:
                 self.app.logger.scan(f"   Resuelto a: {resolved}")
+            self.app.logger.scan(f"   📋 Pasada 1: Puertos 1-10000 (rápido)")
+            self.app.logger.scan(f"   📋 Pasada 2: Puertos 1-65535 (si Pasada 1 vacía)")
             self.app.logger.scan(f"   Comando: nmap {scan_args}")
-            if timeout:
-                self.app.logger.scan(f"   Timeout: {timeout}s")
         self.btn_scan.configure(state="disabled", text="⏳ ESCANEANDO...")
         self.btn_cancel.configure(state="normal")
         self.status_indicator.configure(text="ESCANEANDO", text_color=self.app.c["TEXT_WARNING"])
@@ -123,18 +123,54 @@ class ScannerPanel(ctk.CTkFrame):
 
     def proceso_escaneo_backend(self, target, scan_args, timeout):
         try:
+            # PASADA 1: Escaneo rápido de puertos comunes (1-10000)
+            if self.app.logger:
+                self.app.logger.scan("📊 Pasada 1/2: Escaneando puertos 1-10000...")
+            
             datos, raw = scan_target(
                 target,
                 return_raw=True,
                 scan_args=scan_args,
                 scan_timeout=timeout,
                 stream_callback=self._log_nmap_stream,
-                stats_interval=10,
+                stats_interval=5,
                 cancel_event=self._scan_cancel_event,
             )
             self.app.context.set_scan_raw_output(raw or "")
+            
+            # Si no encuentra puertos, hacer pasada 2 más agresiva
+            if not datos or len(datos) == 0:
+                if self.app.logger:
+                    self.app.logger.scan("❌ Pasada 1 sin resultados. Iniciando Pasada 2/2...")
+                    self.app.logger.scan("📊 Pasada 2/2: Escaneando todos los puertos (1-65535)...")
+                
+                # Reiniciar la barra de progreso
+                self.after(0, lambda: self._reset_progress_bar())
+                
+                # Pasada 2: Escaneo completo de todos los puertos
+                scan_args_2 = "-Pn -sV -sC --open -T4 -p 1-65535"
+                datos, raw = scan_target(
+                    target,
+                    return_raw=True,
+                    scan_args=scan_args_2,
+                    scan_timeout=timeout,
+                    stream_callback=self._log_nmap_stream,
+                    stats_interval=5,
+                    cancel_event=self._scan_cancel_event,
+                )
+                self.app.context.set_scan_raw_output(raw or "")
+                
+                if self.app.logger:
+                    if datos and len(datos) > 0:
+                        self.app.logger.scan(f"✅ Pasada 2 completada: {len(datos)} puertos abiertos encontrados")
+                    else:
+                        self.app.logger.scan("❌ Pasada 2 completada: Sin puertos abiertos")
+            else:
+                if self.app.logger:
+                    self.app.logger.scan(f"✅ Pasada 1 completada: {len(datos)} puertos abiertos encontrados")
+            
             if self.app.logger:
-                self.app.logger.scan(f"Escaneo finalizado: {len(datos)} puertos abiertos en {target}")
+                self.app.logger.scan(f"🏁 Escaneo finalizado: {len(datos)} puertos en total")
             self.after(0, lambda: self.mostrar_resultados(datos))
         except RuntimeError as e:
             msg = str(e)
@@ -184,7 +220,7 @@ class ScannerPanel(ctk.CTkFrame):
     def mostrar_resultados(self, datos):
         self.progress_bar.stop()
         self.progress_bar.configure(mode="determinate")
-        self.progress_bar.set(1)
+        self.progress_bar.set(1.0)
         self.btn_scan.configure(state="normal", text="▶ ESCANEAR")
         self.btn_cancel.configure(state="disabled")
         
@@ -199,7 +235,7 @@ class ScannerPanel(ctk.CTkFrame):
                 if self.app.logger:
                     proto = item.get("proto", "tcp")
                     state = item.get("state", "open")
-                    self.app.logger.scan(f"Puerto {item['port']}/{proto} {state} ({item['service']}) {item['version']}")
+                    self.app.logger.scan(f"   🔓 Puerto {item['port']}/{proto} {state} ({item['service']}) {item['version']}")
             except Exception:
                 pass
         
@@ -208,7 +244,7 @@ class ScannerPanel(ctk.CTkFrame):
             ctk.CTkLabel(self.results_frame, text="⚠️ No se encontraron puertos abiertos", text_color=c["TEXT_MUTED"], font=UI_FONT_BOLD).pack(pady=12)
             Toast(self.app, "0 puertos abiertos", c)
             if self.app.logger:
-                self.app.logger.scan("Sin puertos abiertos (posible filtrado o host inaccesible).")
+                self.app.logger.scan("❌ Sin puertos abiertos (posible filtrado o host inaccesible).")
             return
 
         self.status_indicator.configure(text="ONLINE", text_color=c["TEXT_SUCCESS"])
@@ -264,11 +300,10 @@ class ScannerPanel(ctk.CTkFrame):
             ctk.CTkLabel(fila, text=state, width=100, anchor="w", text_color=state_color, font=UI_FONT_BOLD).pack(side="left", padx=8)
 
     def _build_scan_args(self, target):
-        # Escaneo automático inteligente
-        # Primera pasada: escaneo rápido de puertos comunes
+        # Escaneo automático inteligente - Primera pasada: rápida
         base_args = ["-Pn", "-sV", "-sC", "--open", "-T4"]
         base_args.extend(["-p", "1-10000"])  # Puertos comunes
-        return " ".join(base_args), 600  # 10 minutos de timeout
+        return " ".join(base_args), None  # Sin timeout
 
     def _validate_ports(self, text):
         cleaned = text.replace(" ", "")
@@ -326,9 +361,55 @@ class ScannerPanel(ctk.CTkFrame):
         text = line.strip()
         if not text:
             return
-        keywords = ("Stats:", "Nmap done", "Initiating", "Scanning", "Host is up", "Completed")
-        if any(k in text for k in keywords):
-            self.app.logger.scan(text)
+        
+        # Extraer información de progreso
+        if "Stats:" in text:
+            # Ejemplo: "Stats: 0:00:05 elapsed; 0 hosts completed (1 up)"
+            self.app.logger.scan(f"⏱️ {text}")
+            # Extraer porcentaje si está disponible
+            import re
+            progress_match = re.search(r'(\d+)%', text)
+            if progress_match:
+                progress = int(progress_match.group(1))
+                self.after(0, lambda p=progress: self._update_progress(p))
+        elif "Nmap done" in text:
+            self.app.logger.scan(f"✅ {text}")
+        elif "Initiating" in text:
+            self.app.logger.scan(f"🔍 {text}")
+        elif "Scanning" in text:
+            self.app.logger.scan(f"🔎 {text}")
+        elif "Host is up" in text:
+            self.app.logger.scan(f"✓ {text}")
+        elif "Completed" in text:
+            # Mostrar progreso
+            self.app.logger.scan(f"📊 {text}")
+            import re
+            progress_match = re.search(r'(\d+)%', text)
+            if progress_match:
+                progress = int(progress_match.group(1))
+                self.after(0, lambda p=progress: self._update_progress(p))
+
+    def _update_progress(self, percentage):
+        """Actualizar la barra de progreso"""
+        if not self._scan_running:
+            return
+        try:
+            # Limitar entre 0 y 1
+            progress = min(100, max(0, percentage))
+            self.progress_bar.configure(mode="determinate")
+            self.progress_bar.set(progress / 100.0)
+            self.summary_label.configure(text=f"Progreso: {progress}%")
+        except Exception:
+            pass
+    
+    def _reset_progress_bar(self):
+        """Reiniciar la barra de progreso para la pasada 2"""
+        try:
+            self.progress_bar.set(0)
+            self.progress_bar.configure(mode="indeterminate")
+            self.progress_bar.start()
+        except Exception:
+            pass
 
     def cancel_scan(self):
         if getattr(self, "_scan_cancel_event", None) and self._scan_running:
@@ -357,11 +438,12 @@ class ScannerPanel(ctk.CTkFrame):
         try:
             import time as _time
             elapsed = int(_time.time() - (self._scan_start_ts or _time.time()))
+            elapsed_str = f"{elapsed//60}m {elapsed%60}s" if elapsed >= 60 else f"{elapsed}s"
         except Exception:
-            elapsed = 0
+            elapsed_str = "?"
         if self.app.logger:
-            self.app.logger.scan(f"Escaneo en progreso... {elapsed}s")
-        self._scan_heartbeat_id = self.after(20000, self._scan_heartbeat_tick)
+            self.app.logger.scan(f"⏳ Escaneo en progreso... {elapsed_str}")
+        self._scan_heartbeat_id = self.after(15000, self._scan_heartbeat_tick)  # Cada 15 segundos
 
     def _is_admin(self):
         try:
