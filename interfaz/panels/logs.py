@@ -42,8 +42,14 @@ class LogsPanel(ctk.CTkFrame):
         self.after(0, lambda e=entry: self._append_entry(e))
 
     def _append_entry(self, entry: dict):
+        # Check if widget still exists
+        if not self.winfo_exists():
+            return
         if not self._is_clean:
-            self.log_box.delete("1.0", "end")
+            try:
+                self.log_box.delete("1.0", "end")
+            except:
+                return
             self._is_clean = True
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         record = {
@@ -60,8 +66,11 @@ class LogsPanel(ctk.CTkFrame):
             if record["tag"]:
                 prefix += f"[{record['tag']}] "
             line = f"[{record['ts']}] {prefix}{record['message']}\n"
-            self.log_box.insert("end", line)
-            self.log_box.see("end")
+            try:
+                self.log_box.insert("end", line)
+                self.log_box.see("end")
+            except:
+                pass
 
     def _matches_filter(self, record):
         return self.filter_value == "ALL" or record.get("tag") == self.filter_value
@@ -71,7 +80,12 @@ class LogsPanel(ctk.CTkFrame):
         self._rebuild()
 
     def _rebuild(self):
-        self.log_box.delete("1.0", "end")
+        if not self.winfo_exists():
+            return
+        try:
+            self.log_box.delete("1.0", "end")
+        except:
+            return
         self._is_clean = True
         for record in self.entries:
             if not self._matches_filter(record):
@@ -82,4 +96,7 @@ class LogsPanel(ctk.CTkFrame):
             if record["tag"]:
                 prefix += f"[{record['tag']}] "
             line = f"[{record['ts']}] {prefix}{record['message']}\n"
-            self.log_box.insert("end", line)
+            try:
+                self.log_box.insert("end", line)
+            except:
+                pass

@@ -45,7 +45,20 @@ def scan_target(
                         product = port_info.get('product', '')
                         version = port_info.get('version', '')
                         state = port_info.get('state', 'open')
-                        ver = (product + " " + version).strip()
+                        extrainfo = port_info.get('extrainfo', '')
+                        
+                        # Construir información de versión más completa
+                        ver_parts = []
+                        if product:
+                            ver_parts.append(product)
+                        if version:
+                            ver_parts.append(version)
+                        if extrainfo:
+                            ver_parts.append(f"({extrainfo})")
+                        ver = " ".join(ver_parts).strip()
+                        if not ver:
+                            ver = service or "desconocido"
+                        
                         results.append({
                             "port": str(port),
                             "service": service,
@@ -203,7 +216,16 @@ def _parse_grepable_output(text):
             service = parts[4].strip()
             version = ""
             if len(parts) >= 7:
-                version = "/".join(parts[6:]).strip()
+                # Captura toda la información después del nombre del servicio
+                version_parts = parts[6:]
+                version = "/".join(version_parts).strip()
+            
+            # Si no hay versión pero sí extrainfo, usarlo
+            if not version and len(parts) >= 6:
+                extrainfo = parts[5].strip()
+                if extrainfo and extrainfo != "filtered":
+                    version = extrainfo
+            
             if state not in ("open", "open|filtered"):
                 continue
             results.append({

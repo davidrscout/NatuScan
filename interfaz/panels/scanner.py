@@ -33,105 +33,27 @@ class ScannerPanel(ctk.CTkFrame):
         self.btn_raw.pack(side="right", padx=8, pady=10)
 
         form = ctk.CTkFrame(self, fg_color=c["BG_PANEL"])
-        form.pack(fill="x", pady=10)
-        ctk.CTkLabel(form, text="Objetivo / IP", text_color=c["TEXT_PRIMARY"], font=UI_FONT_BOLD).grid(row=0, column=0, padx=14, pady=12, sticky="w")
-        self.entry_ip = ctk.CTkEntry(form, width=260, placeholder_text="192.168.1.10",
+        form.pack(fill="x", pady=10, padx=14)
+        ctk.CTkLabel(form, text="Objetivo (IP o Dominio)", text_color=c["TEXT_PRIMARY"], font=UI_FONT_BOLD).pack(side="left", padx=0, pady=12)
+        self.entry_ip = ctk.CTkEntry(form, width=350, placeholder_text="192.168.1.1 o ejemplo.com",
                                      fg_color=c["BG_CARD"], border_color=c["ACCENT_SECONDARY"], border_width=1,
                                      corner_radius=10, text_color=c["TEXT_PRIMARY"], font=UI_FONT)
-        self.entry_ip.grid(row=0, column=1, padx=10, pady=12, sticky="w")
+        self.entry_ip.pack(side="left", padx=10, pady=12)
 
-        self.btn_scan = ctk.CTkButton(form, text="Iniciar Escaneo", width=170, height=42,
+        self.btn_scan = ctk.CTkButton(form, text="▶ ESCANEAR", width=200, height=42,
                                       fg_color=c["ACCENT"], hover_color=c["ACCENT_HOVER"],
                                       corner_radius=12, font=UI_FONT_BOLD,
                                       command=self.iniciar_escaneo_visual)
-        self.btn_scan.grid(row=0, column=2, padx=14, pady=12)
+        self.btn_scan.pack(side="left", padx=10, pady=12)
 
-        self.btn_cancel = ctk.CTkButton(form, text="Cancelar", width=120, height=42,
+        self.btn_cancel = ctk.CTkButton(form, text="⏹ CANCELAR", width=150, height=42,
                                         fg_color=c["BG_PANEL"], hover_color=c["ACCENT_HOVER"],
                                         corner_radius=12, font=UI_FONT_BOLD,
                                         command=self.cancel_scan, state="disabled")
-        self.btn_cancel.grid(row=0, column=3, padx=10, pady=12)
+        self.btn_cancel.pack(side="left", padx=5, pady=12)
 
-        ctk.CTkLabel(form, text="Modo:", text_color=c["TEXT_PRIMARY"], font=UI_FONT).grid(row=1, column=0, padx=14, pady=(0, 10), sticky="w")
-        self.scan_mode = ctk.CTkOptionMenu(
-            form,
-            values=["Rápido", "Normal", "Completo"],
-            fg_color=c["BG_CARD"],
-            button_color=c["ACCENT"],
-            button_hover_color=c["ACCENT_HOVER"],
-            dropdown_fg_color=c["BG_CARD"],
-            dropdown_text_color=c["TEXT_PRIMARY"],
-            text_color=c["TEXT_PRIMARY"],
-            font=UI_FONT,
-        )
-        self.scan_mode.set("Normal")
-        self.scan_mode.grid(row=1, column=1, padx=10, pady=(0, 10), sticky="w")
-
-        ctk.CTkLabel(form, text="Puertos:", text_color=c["TEXT_PRIMARY"], font=UI_FONT).grid(row=1, column=2, padx=10, pady=(0, 10), sticky="w")
-        self.entry_ports = ctk.CTkEntry(
-            form,
-            width=180,
-            placeholder_text="80,443,1-1024",
-            fg_color=c["BG_CARD"],
-            border_color=c["ACCENT_SECONDARY"],
-            border_width=1,
-            corner_radius=10,
-            text_color=c["TEXT_PRIMARY"],
-            font=UI_FONT,
-        )
-        self.entry_ports.grid(row=1, column=3, padx=10, pady=(0, 10), sticky="w")
-
-        ctk.CTkLabel(form, text="Timeout (s):", text_color=c["TEXT_PRIMARY"], font=UI_FONT).grid(
-            row=2, column=0, padx=14, pady=(0, 10), sticky="w"
-        )
-        self.entry_timeout = ctk.CTkEntry(
-            form,
-            width=100,
-            placeholder_text="300",
-            fg_color=c["BG_CARD"],
-            border_color=c["ACCENT_SECONDARY"],
-            border_width=1,
-            corner_radius=10,
-            text_color=c["TEXT_PRIMARY"],
-            font=UI_FONT,
-        )
-        self.entry_timeout.insert(0, "300")
-        self.entry_timeout.grid(row=2, column=1, padx=10, pady=(0, 10), sticky="w")
-
-        self.chk_no_dns = ctk.CTkCheckBox(
-            form,
-            text="No DNS (-n)",
-            text_color=c["TEXT_PRIMARY"],
-            fg_color=c["ACCENT"],
-        )
-        self.chk_no_dns.grid(row=2, column=2, padx=10, pady=(0, 10), sticky="w")
-
-        self.chk_udp = ctk.CTkCheckBox(
-            form,
-            text="UDP (-sU)",
-            text_color=c["TEXT_PRIMARY"],
-            fg_color=c["ACCENT"],
-        )
-        self.chk_udp.grid(row=2, column=3, padx=10, pady=(0, 10), sticky="w")
-
-        self.chk_os = ctk.CTkCheckBox(
-            form,
-            text="OS (-O)",
-            text_color=c["TEXT_PRIMARY"],
-            fg_color=c["ACCENT"],
-        )
-        self.chk_os.grid(row=3, column=0, padx=14, pady=(0, 10), sticky="w")
-
-        self.chk_scripts = ctk.CTkCheckBox(
-            form,
-            text="Scripts (-sC)",
-            text_color=c["TEXT_PRIMARY"],
-            fg_color=c["ACCENT"],
-        )
-        self.chk_scripts.grid(row=3, column=1, padx=10, pady=(0, 10), sticky="w")
-
-        self.progress_bar = ctk.CTkProgressBar(form, width=360, progress_color=c["ACCENT"], fg_color=c["BG_CARD"], corner_radius=10)
-        self.progress_bar.grid(row=4, column=0, columnspan=4, padx=14, pady=(0, 12))
+        self.progress_bar = ctk.CTkProgressBar(form, width=200, progress_color=c["ACCENT"], fg_color=c["BG_CARD"], corner_radius=10)
+        self.progress_bar.pack(side="left", padx=10, pady=12)
         self.progress_bar.set(0)
 
         self.results_frame = ctk.CTkScrollableFrame(self, fg_color=c["BG_PANEL"], height=480)
@@ -146,7 +68,7 @@ class ScannerPanel(ctk.CTkFrame):
         raw_target = self.entry_ip.get().strip()
         target = self.normalize_target(raw_target)
         if not target:
-            Toast(self.app, "Objetivo inválido", self.app.c)
+            Toast(self.app, "IP o dominio inválido", self.app.c)
             if self.app.logger:
                 self.app.logger.warn("Objetivo inválido", tag="SCAN")
             return
@@ -159,15 +81,15 @@ class ScannerPanel(ctk.CTkFrame):
             self.app.context.set_target(target)
         resolved = self._resolve_target(target)
         if self.app.logger:
-            self.app.logger.scan(f"Escaneo iniciado: {target}")
+            self.app.logger.scan(f"🔍 Iniciando escaneo automático de: {target}")
             if resolved and resolved != target:
-                self.app.logger.scan(f"Objetivo resuelto: {resolved}")
-            self.app.logger.scan(f"CMD: nmap {scan_args} {target}")
+                self.app.logger.scan(f"   Resuelto a: {resolved}")
+            self.app.logger.scan(f"   Comando: nmap {scan_args}")
             if timeout:
-                self.app.logger.scan(f"Timeout: {timeout}s")
-        self.btn_scan.configure(state="disabled", text="ESCANEANDO...")
+                self.app.logger.scan(f"   Timeout: {timeout}s")
+        self.btn_scan.configure(state="disabled", text="⏳ ESCANEANDO...")
         self.btn_cancel.configure(state="normal")
-        self.status_indicator.configure(text="SCANNING", text_color=self.app.c["TEXT_WARNING"])
+        self.status_indicator.configure(text="ESCANEANDO", text_color=self.app.c["TEXT_WARNING"])
         self.progress_bar.configure(mode="indeterminate")
         self.progress_bar.start()
         self._scan_running = True
@@ -263,9 +185,9 @@ class ScannerPanel(ctk.CTkFrame):
         self.progress_bar.stop()
         self.progress_bar.configure(mode="determinate")
         self.progress_bar.set(1)
-        self.btn_scan.configure(state="normal", text="INICIAR ESCANEO")
+        self.btn_scan.configure(state="normal", text="▶ ESCANEAR")
         self.btn_cancel.configure(state="disabled")
-        self.status_indicator.configure(text="ONLINE", text_color=self.app.c["TEXT_SUCCESS"])
+        
         ordered = sorted(datos, key=lambda x: int(x.get("port", 0)))
         self.summary_label.configure(text=f"Puertos: {len(ordered)}")
         self._scan_running = False
@@ -280,73 +202,73 @@ class ScannerPanel(ctk.CTkFrame):
                     self.app.logger.scan(f"Puerto {item['port']}/{proto} {state} ({item['service']}) {item['version']}")
             except Exception:
                 pass
+        
         if not ordered:
-            ctk.CTkLabel(self.results_frame, text="No se encontraron puertos abiertos.", text_color=c["TEXT_MUTED"]).pack(pady=12)
+            self.status_indicator.configure(text="SIN PUERTOS", text_color=c["TEXT_WARNING"])
+            ctk.CTkLabel(self.results_frame, text="⚠️ No se encontraron puertos abiertos", text_color=c["TEXT_MUTED"], font=UI_FONT_BOLD).pack(pady=12)
             Toast(self.app, "0 puertos abiertos", c)
             if self.app.logger:
                 self.app.logger.scan("Sin puertos abiertos (posible filtrado o host inaccesible).")
             return
 
+        self.status_indicator.configure(text="ONLINE", text_color=c["TEXT_SUCCESS"])
+        
+        # Header
         header = ctk.CTkFrame(self.results_frame, fg_color=c["BG_CARD"], corner_radius=10)
-        header.pack(fill="x", pady=4, padx=8)
-        ctk.CTkLabel(header, text="PUERTO", width=90, font=UI_FONT_BOLD, text_color=c["TEXT_PRIMARY"]).pack(side="left", padx=10, pady=8)
-        ctk.CTkLabel(header, text="ESTADO", width=110, font=UI_FONT_BOLD, text_color=c["TEXT_PRIMARY"]).pack(side="left", padx=10, pady=8)
-        ctk.CTkLabel(header, text="SERVICIO", width=150, font=UI_FONT_BOLD, text_color=c["TEXT_PRIMARY"]).pack(side="left", padx=10, pady=8)
-        ctk.CTkLabel(header, text="VERSIÓN", font=UI_FONT_BOLD, text_color=c["TEXT_PRIMARY"]).pack(side="left", padx=10, pady=8)
+        header.pack(fill="x", pady=8, padx=8)
+        
+        col_headers = [
+            ("PUERTO", 80),
+            ("SERVICIO", 140),
+            ("VERSIÓN", 250),
+            ("ESTADO", 100)
+        ]
+        
+        for title, width in col_headers:
+            ctk.CTkLabel(header, text=title, width=width, font=UI_FONT_BOLD, text_color=c["ACCENT"]).pack(side="left", padx=12, pady=10)
 
+        # Resultados
         for item in ordered:
-            fila = ctk.CTkFrame(self.results_frame, fg_color=c["BG_PANEL"])
-            fila.pack(fill="x", pady=2, padx=6)
-            color_p = c["TEXT_DANGER"] if item['port'] in ["22", "3389", "445"] else c["ACCENT_SECONDARY"]
+            fila = ctk.CTkFrame(self.results_frame, fg_color=c["BG_CARD"], corner_radius=8)
+            fila.pack(fill="x", pady=3, padx=8)
+            
+            # Puerto (color según riesgo)
+            puerto = item['port']
             proto = item.get("proto", "tcp")
-            state = item.get("state", "open")
-            port_label = f"{item['port']}/{proto}" if proto != "tcp" else item["port"]
-            btn_port = ctk.CTkButton(fila, text=port_label, width=90, fg_color=color_p,
-                                     hover=False, corner_radius=10, font=UI_FONT_BOLD, text_color="#0b0b0b")
-            btn_port.pack(side="left", padx=8, pady=4)
-            btn_port.bind("<Button-3>", lambda e, p=item['port'], s=item['service']: self.ctx_menu(e, p, s))
-            ctk.CTkLabel(fila, text=state, width=110, anchor="w", text_color=c["TEXT_PRIMARY"], font=UI_FONT).pack(side="left", padx=8)
-            ctk.CTkLabel(fila, text=item['service'], width=150, anchor="w", text_color=c["TEXT_PRIMARY"], font=UI_FONT).pack(side="left", padx=8)
-            ctk.CTkLabel(fila, text=item['version'], anchor="w", text_color=c["TEXT_MUTED"], font=UI_FONT).pack(side="left", padx=8)
+            puertos_riesgo = ["22", "3389", "445", "139", "135", "3306", "5432", "6379", "27017"]
+            color_p = c["TEXT_DANGER"] if puerto in puertos_riesgo else c["ACCENT"]
+            port_label = f"{puerto}/{proto}" if proto != "tcp" else puerto
+            
+            btn_port = ctk.CTkButton(
+                fila, text=port_label, width=80, 
+                fg_color=color_p, hover_color=color_p,
+                corner_radius=6, font=UI_FONT_BOLD, text_color="#fff",
+                command=lambda p=puerto, s=item['service']: self.ctx_menu(None, p, s)
+            )
+            btn_port.pack(side="left", padx=10, pady=8)
+            
+            # Servicio
+            service = item['service'] or "desconocido"
+            ctk.CTkLabel(fila, text=service, width=140, anchor="w", text_color=c["TEXT_PRIMARY"], font=UI_FONT).pack(side="left", padx=8)
+            
+            # Versión (con detección de tecnología)
+            version = item.get('version', '').strip()
+            if not version:
+                version = "sin versión"
+            version_display = version[:50] if len(version) > 50 else version
+            ctk.CTkLabel(fila, text=version_display, width=250, anchor="w", text_color=c["TEXT_MUTED"], font=UI_FONT).pack(side="left", padx=8)
+            
+            # Estado
+            state = item.get("state", "open").upper()
+            state_color = c["TEXT_SUCCESS"] if state == "OPEN" else c["TEXT_WARNING"]
+            ctk.CTkLabel(fila, text=state, width=100, anchor="w", text_color=state_color, font=UI_FONT_BOLD).pack(side="left", padx=8)
 
     def _build_scan_args(self, target):
-        base_args = ["-Pn", "-sV", "-T4", "--open"]
-        mode = (self.scan_mode.get() or "Normal").strip()
-        ports = self.entry_ports.get().strip()
-        timeout = self._parse_timeout()
-        if timeout:
-            base_args.extend(["--host-timeout", f"{timeout}s"])
-        if self.chk_no_dns.get():
-            if self._is_ip(target):
-                base_args.append("-n")
-            else:
-                Toast(self.app, "No DNS desactivado (objetivo es dominio)", self.app.c)
-                if self.app.logger:
-                    self.app.logger.warn("No DNS omitido: objetivo es dominio", tag="SCAN")
-        if self.chk_scripts.get():
-            base_args.append("-sC")
-        if self.chk_os.get():
-            if self._is_admin():
-                base_args.append("-O")
-            else:
-                Toast(self.app, "OS detection requiere admin (se omite)", self.app.c)
-                if self.app.logger:
-                    self.app.logger.warn("OS detection requiere admin (omitido)", tag="SCAN")
-        if self.chk_udp.get():
-            base_args.extend(["-sU", "-sT"])
-        if ports:
-            if not self._validate_ports(ports):
-                Toast(self.app, "Puertos inválidos", self.app.c)
-                if self.app.logger:
-                    self.app.logger.warn(f"Puertos inválidos: {ports}", tag="SCAN")
-                return None, None
-            base_args.extend(["-p", ports])
-        else:
-            if mode == "Rápido":
-                base_args.append("-F")
-            elif mode == "Completo":
-                base_args.append("-p-")
-        return " ".join(base_args), timeout
+        # Escaneo automático inteligente
+        # Primera pasada: escaneo rápido de puertos comunes
+        base_args = ["-Pn", "-sV", "-sC", "--open", "-T4"]
+        base_args.extend(["-p", "1-10000"])  # Puertos comunes
+        return " ".join(base_args), 600  # 10 minutos de timeout
 
     def _validate_ports(self, text):
         cleaned = text.replace(" ", "")
@@ -444,21 +366,28 @@ class ScannerPanel(ctk.CTkFrame):
     def _is_admin(self):
         try:
             if os.name == "nt":
+                # Windows
                 return ctypes.windll.shell32.IsUserAnAdmin() != 0
-            return os.geteuid() == 0
+            else:
+                # Unix/Linux/Mac
+                return os.geteuid() == 0
         except Exception:
             return False
 
     def ctx_menu(self, event, puerto, servicio):
         menu = tk.Menu(self, tearoff=0, bg="#1f1f2b", fg="white")
-        menu.add_command(label=f"Puerto {puerto}", state="disabled")
+        menu.add_command(label=f"🔌 Puerto {puerto}", state="disabled")
         menu.add_separator()
-        menu.add_command(label="Copiar puerto", command=lambda: self.clipboard_clear() or self.clipboard_append(puerto))
-        if "http" in servicio or "80" in str(puerto) or "443" in str(puerto):
-            menu.add_command(label="Abrir en navegador", command=lambda: webbrowser.open(self._build_http_url(puerto, servicio)))
-            menu.add_command(label="Enviar a Fuzzer", command=lambda: self.send_to_fuzzer(puerto, servicio))
-            menu.add_command(label="Abrir en Viewer", command=lambda: self.open_in_viewer(puerto, servicio))
-        menu.tk_popup(event.x_root, event.y_root)
+        menu.add_command(label="📋 Copiar puerto", command=lambda: self.clipboard_clear() or self.clipboard_append(puerto))
+        if "http" in servicio.lower() or "80" in str(puerto) or "443" in str(puerto):
+            menu.add_command(label="🌐 Abrir en navegador", command=lambda: webbrowser.open(self._build_http_url(puerto, servicio)))
+            menu.add_command(label="🔓 Enviar a Fuzzer", command=lambda: self.send_to_fuzzer(puerto, servicio))
+            menu.add_command(label="👁️ Abrir en Viewer", command=lambda: self.open_in_viewer(puerto, servicio))
+        if event:
+            menu.tk_popup(event.x_root, event.y_root)
+        else:
+            # Mostrar en el centro
+            menu.tk_popup(self.winfo_x() + 100, self.winfo_y() + 100)
 
     def _build_http_url(self, puerto, servicio):
         protocol = "https" if str(puerto) == "443" or "https" in servicio else "http"

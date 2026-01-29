@@ -5,5 +5,5 @@ tkinterweb
 cryptography
 httpx
 h2
-pywin32
 pycryptodome
+pywin32; sys_platform == 'win32'

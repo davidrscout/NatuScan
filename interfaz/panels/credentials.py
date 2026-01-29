@@ -122,8 +122,9 @@ class CredentialsPanel(ctk.CTkFrame):
 
             if not WINDOWS:
                 result = (
-                    "Faltan dependencias para descifrar credenciales.\n"
-                    "Instala: pywin32 y pycryptodome."
+                    "La auditoría de credenciales solo es compatible con Windows.\n"
+                    "Necesita win32crypt (parte de pywin32) y pycryptodome.\n"
+                    "En Linux/Mac esta función no está disponible."
                 )
                 self._finish_audit(result, warn=True)
                 return
