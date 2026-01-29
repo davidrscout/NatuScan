@@ -93,6 +93,7 @@ class ScannerPanel(ctk.CTkFrame):
         except RuntimeError as e:
             if self.app.logger:
                 self.app.logger.error(str(e), tag="SCAN")
+            self.after(0, lambda: Toast(self.app, str(e), self.app.c))
             self.after(0, self.reset_gui_error)
         except Exception as e:
             if self.app.logger:

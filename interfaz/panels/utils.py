@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 import http.server
 import socketserver
@@ -6,7 +7,7 @@ import functools
 
 import customtkinter as ctk
 
-from ..ui_constants import UI_FONT, UI_FONT_BOLD, MONO_FONT
+from ..ui_constants import UI_FONT, UI_FONT_BOLD, MONO_FONT, Toast
 from ..services import append_hosts_entry, resolve_hosts_path
 
 
@@ -79,6 +80,11 @@ class UtilsPanel(ctk.CTkFrame):
         domain = self.domain_entry.get()
         if not ip or not domain:
             return
+        if not self._valid_ip(ip) or not self._valid_domain(domain):
+            Toast(self.app, "IP o dominio inválido", self.app.c)
+            if self.app.logger:
+                self.app.logger.warn("IP o dominio inválido para hosts", tag="UTILS")
+            return
         try:
             ruta = append_hosts_entry(ip, domain)
             self.http_status.configure(text=f"Añadido {domain} -> {ip}", text_color=self.app.c["TEXT_SUCCESS"])
@@ -89,6 +95,16 @@ class UtilsPanel(ctk.CTkFrame):
             self.http_status.configure(text=f"Permisos insuficientes para {ruta}", text_color=self.app.c["TEXT_DANGER"])
             if self.app.logger:
                 self.app.logger.error(f"Permisos insuficientes para {ruta}", tag="UTILS")
+        except Exception as e:
+            self.http_status.configure(text=f"Error: {e}", text_color=self.app.c["TEXT_DANGER"])
+            if self.app.logger:
+                self.app.logger.error(f"Error hosts: {e}", tag="UTILS")
+
+    def _valid_ip(self, ip):
+        return bool(re.fullmatch(r\"\\d{1,3}(?:\\.\\d{1,3}){3}\", ip))
+
+    def _valid_domain(self, domain):
+        return bool(re.fullmatch(r\"[A-Za-z0-9.-]+\", domain))
 
     def choose_directory(self):
         from tkinter import filedialog
