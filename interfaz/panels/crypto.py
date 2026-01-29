@@ -55,7 +55,7 @@ class CryptoPanel(ctk.CTkFrame):
         ctk.CTkButton(button_col, text="Binario → Texto", fg_color="#374151", hover_color="#4b5563",
                       corner_radius=10, font=UI_FONT_BOLD, command=self.do_bin_to_text).pack(fill="x", pady=3)
         ctk.CTkButton(button_col, text="Texto → Hex", fg_color="#374151", hover_color="#4b5563",
-                      corner_radius=10, font=UI_FONT_BOLD, command=self.do_to_hex).pack(fill="x", pady=3)
+                      corner_radius=10, font=UI_FONT_BOLD, command=self.do_hex).pack(fill="x", pady=3)
         ctk.CTkButton(button_col, text="Hex → Texto", fg_color="#374151", hover_color="#4b5563",
                       corner_radius=10, font=UI_FONT_BOLD, command=self.do_hex_to_text).pack(fill="x", pady=3)
 
