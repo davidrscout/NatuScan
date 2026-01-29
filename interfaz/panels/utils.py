@@ -75,6 +75,7 @@ class UtilsPanel(ctk.CTkFrame):
                                            fg_color=c["BG_CARD"], text_color=c["TEXT_SUCCESS"])
         self.http_log_box.grid(row=5, column=0, columnspan=4, padx=12, pady=(2, 12), sticky="we")
 
+
     def add_to_hosts(self):
         ip = self.app.panels["scanner"].entry_ip.get()
         domain = self.domain_entry.get()
@@ -105,6 +106,7 @@ class UtilsPanel(ctk.CTkFrame):
 
     def _valid_domain(self, domain):
         return bool(re.fullmatch(r"[A-Za-z0-9.-]+", domain))
+
 
     def choose_directory(self):
         from tkinter import filedialog
